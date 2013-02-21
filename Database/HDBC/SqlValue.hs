@@ -239,8 +239,14 @@ instance Eq SqlValue where
     SqlNull == SqlNull = True
     SqlNull == _ = False
     _ == SqlNull = False
-    a == b = ((safeFromSql a)::ConvertResult String) == 
-             ((safeFromSql b)::ConvertResult String)
+    a == b = case convres of
+      Left _ -> False
+      Right r -> r
+      where
+        convres = do 
+          x <- ((safeFromSql a)::ConvertResult String)
+          y <- ((safeFromSql b)::ConvertResult String)
+          return $ x == y
 
 instance Convertible SqlValue SqlValue where
     safeConvert = return
@@ -313,9 +319,7 @@ instance Convertible SqlValue BSL.ByteString where
                        return (BSL.fromChunks [bs])
 
 instance Convertible Int SqlValue where
-    safeConvert x = 
-        do i <- ((safeConvert x)::ConvertResult Int64)
-           return $ SqlInt64 i
+    safeConvert x = fmap SqlInt64 $ safeConvert x
 instance Convertible SqlValue Int where
     safeConvert (SqlString x) = read' x
     safeConvert (SqlByteString x) = (read' . BUTF8.toString) x
@@ -570,8 +574,8 @@ instance Convertible SqlValue Double where
 instance Convertible Rational SqlValue where
     safeConvert = return . SqlRational
 instance Convertible SqlValue Rational where
-    safeConvert (SqlString x) = read' x
-    safeConvert (SqlByteString x) = (read' . BUTF8.toString) x
+    safeConvert (SqlString x) = readRational x
+    safeConvert (SqlByteString x) = (readRational . BUTF8.toString) x
     safeConvert (SqlInt32 x) = safeConvert x
     safeConvert (SqlInt64 x) = safeConvert x
     safeConvert (SqlWord32 x) = safeConvert x
@@ -594,6 +598,28 @@ instance Convertible SqlValue Rational where
     safeConvert (SqlEpochTime x) = return . fromIntegral $ x
     safeConvert (SqlTimeDiff x) = return . fromIntegral $ x
     safeConvert y@(SqlNull) = quickError y
+
+readMay :: Read a => String -> Maybe a
+readMay s = case reads s of
+  [(a, "")] -> Just a
+  _         -> Nothing
+
+readRational :: String -> ConvertResult Rational -- more smart reader for Rationals
+readRational s = case reads s of
+  [(a, "")] -> return a
+  _ -> case decread of
+    Just a -> return a
+    Nothing -> convError "Could not read as Rational: " s
+  where
+    decread = do
+      h <- readMay high
+      l <- readMay low
+      return $ (fromInteger h) + (l % 10^lowdecs)
+    (high, loW) = span (/= '.') s
+    low = case drop 1 loW of
+      "" -> "0"
+      x -> x
+    lowdecs = length $ dropWhile (== '0') $ reverse low -- drop tail zeros
 
 #ifndef TIME_GT_113
 instance Typeable Day where
@@ -784,20 +810,38 @@ instance Convertible SqlValue UTCTime where
     safeConvert y@(SqlTimeDiff _) = convError "incompatible types (did you mean SqlPOSIXTime?)" y
     safeConvert y@SqlNull = quickError y
 
+instance (HasResolution r) => Convertible (Fixed r) SqlValue where
+  safeConvert = return . SqlString . (showFixed True)
+instance (HasResolution r, Typeable r) => Convertible SqlValue (Fixed r) where
+  safeConvert (SqlString s) = stringToFixed s
+  safeConvert (SqlByteString b) = safeConvert $ SqlString $ BUTF8.toString b
+  safeConvert (SqlWord32 w) = return $ fromIntegral w
+  safeConvert (SqlWord64 w) = return $ fromIntegral w
+  safeConvert (SqlInt32 i) = return $ fromIntegral i
+  safeConvert (SqlInt64 i) = return $ fromIntegral i
+  safeConvert (SqlInteger i) = return $ fromIntegral i
+  safeConvert (SqlChar c) = return $ fromIntegral $ fromEnum c
+  safeConvert (SqlBool b) = return $ fromIntegral $ (if b then 1 else 0 :: Int)
+  safeConvert (SqlDouble d) = return $ fromRational $ toRational d
+  safeConvert (SqlRational r) = return $ fromRational r
+  safeConvert y@(SqlLocalDate _) = quickError y
+  safeConvert (SqlLocalTimeOfDay d) = return $ fromRational $ toRational $ timeOfDayToTime d
+  safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
+  safeConvert y@(SqlLocalTime _) = quickError y
+  safeConvert (SqlZonedTime x) = safeConvert . SqlUTCTime . zonedTimeToUTC $ x
+  safeConvert (SqlUTCTime x) = fmap fromRational $ safeConvert x
+  safeConvert (SqlDiffTime x) = fmap fromRational $ safeConvert x
+  safeConvert (SqlPOSIXTime x) = fmap fromRational $ safeConvert x
+  safeConvert (SqlEpochTime x) = return . fromIntegral $ x
+  safeConvert (SqlTimeDiff x) = return . fromIntegral $ x
+  safeConvert y@(SqlNull) = quickError y
+  
+
+stringToFixed :: (HasResolution r) => String -> ConvertResult (Fixed r)
+stringToFixed s = fmap fromRational $ readRational s
+    
 stringToPico :: String -> ConvertResult Pico
-stringToPico s =
-    let (base, fracwithdot) = span (/= '.') s
-        shortfrac = drop 1 fracwithdot -- strip of dot; don't use tail because it may be empty
-        frac = take 12 (rpad 12 '0' shortfrac)
-        rpad :: Int -> a -> [a] -> [a]
-                -- next line lifted from Data.Time
-        rpad n c xs = xs ++ replicate (n - length xs) c
-        mkPico :: Integer -> Integer -> Pico
-                -- next line also lifted from Data.Time
-        mkPico i f = fromInteger i + fromRational (f % 1000000000000)
-    in do parsedBase <- read' base
-          parsedFrac <- read' frac
-          return (mkPico parsedBase parsedFrac)
+stringToPico = stringToFixed
 
 instance Convertible NominalDiffTime SqlValue where
     safeConvert = return . SqlDiffTime
