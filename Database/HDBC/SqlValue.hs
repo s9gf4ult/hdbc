@@ -612,9 +612,8 @@ readRational s = case reads s of
     Nothing -> convError "Could not read as Rational: " s
   where
     decread = do
-      h <- readMay high
-      l <- readMay low
-      return $ (fromInteger h) + (l % 10^lowdecs)
+      h <- readMay $ high ++ low
+      return $ h % (10^lowdecs)
     (high, loW) = span (/= '.') s
     low = case drop 1 loW of
       "" -> "0"
@@ -812,6 +811,7 @@ instance Convertible SqlValue UTCTime where
 
 instance (HasResolution r) => Convertible (Fixed r) SqlValue where
   safeConvert = return . SqlString . (showFixed True)
+
 instance (HasResolution r, Typeable r) => Convertible SqlValue (Fixed r) where
   safeConvert (SqlString s) = stringToFixed s
   safeConvert (SqlByteString b) = safeConvert $ SqlString $ BUTF8.toString b

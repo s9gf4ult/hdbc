@@ -58,34 +58,17 @@ library
     FlexibleContexts, TypeSynonymInstances, TypeOperators, RankNTypes,
     FlexibleInstances
     
-Executable runtests
-   if flag(buildtests)
-      Buildable: True
-      Build-Depends: HUnit, QuickCheck (>= 2.0), testpack (>= 2.0)
-
-      if flag(splitBase)
-        Build-Depends: base>=3 && <5, old-time, time>=1.1.2.4 && <=1.5, bytestring, containers, old-locale
-        if flag(time_gte_113)
-          Build-Depends: time>=1.1.3
-          CPP-OPTIONS: -DTIME_GT_113
-        else
-          Build-Depends: time<1.1.3
-      else
-        Build-Depends: base<3
-      Build-Depends: mtl, convertible >= 1.0.9.1, utf8-string, text
-
-      -- Hack for cabal-install weirdness.  cabal-install forces base 3,
-      -- though it works fine for Setup.lhs manually.  Fix.
-      if impl(ghc >= 6.9)
-         build-depends: base >= 4
-   else
-      Buildable: False
-   Main-Is: runtests.hs
-   Other-Modules: TestSqlValue
-                  TestInfrastructure
-   Hs-Source-Dirs: ., testsrc
-   GHC-Options: -O2
-   Extensions: ExistentialQuantification, CPP, MultiParamTypeClasses,
-     FlexibleContexts, TypeSynonymInstances, TypeOperators,
-     RankNTypes, FlexibleInstances
-   
+Test-Suite sqlvalues
+  Type:             exitcode-stdio-1.0
+  Main-Is:          sqlvalues.hs
+  Hs-Source-Dirs:   testsrc
+  Build-Depends:    base
+                  , QuickCheck
+                  , quickcheck-instances
+                  , hspec
+                  , HDBC
+                  , text
+                  , bytestring
+                  , time
+                  , convertible
+                  , old-time
