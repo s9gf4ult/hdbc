@@ -905,17 +905,18 @@ instance Convertible ST.TimeDiff SqlValue where
 instance Convertible SqlValue ST.TimeDiff where
     safeConvert y@(SqlString _) = 
         do r <- safeConvert y
-           safeConvert (SqlDiffTime r)
+           ret <- safeConvert (SqlDiffTime r)
+           return $ ST.normalizeTimeDiff ret
     safeConvert (SqlByteString x) = safeConvert . SqlString . BUTF8.toString $ x
-    safeConvert (SqlInt32 x) = secs2td (fromIntegral x)
-    safeConvert (SqlInt64 x) = secs2td (fromIntegral x)
-    safeConvert (SqlWord32 x) = secs2td (fromIntegral x)
-    safeConvert (SqlWord64 x) = secs2td (fromIntegral x)
-    safeConvert (SqlInteger x) = secs2td x
+    safeConvert (SqlInt32 x) = fmap ST.normalizeTimeDiff $ secs2td (fromIntegral x)
+    safeConvert (SqlInt64 x) = fmap ST.normalizeTimeDiff $ secs2td (fromIntegral x)
+    safeConvert (SqlWord32 x) = fmap ST.normalizeTimeDiff $ secs2td (fromIntegral x)
+    safeConvert (SqlWord64 x) = fmap ST.normalizeTimeDiff $ secs2td (fromIntegral x)
+    safeConvert (SqlInteger x) = fmap ST.normalizeTimeDiff $ secs2td x
     safeConvert y@(SqlChar _) = quickError y
     safeConvert y@(SqlBool _) = quickError y
-    safeConvert (SqlDouble x) = secs2td (truncate x)
-    safeConvert (SqlRational x) = secs2td (truncate x)
+    safeConvert (SqlDouble x) = fmap ST.normalizeTimeDiff $ secs2td (truncate x)
+    safeConvert (SqlRational x) = fmap ST.normalizeTimeDiff $ secs2td (truncate x)
     safeConvert y@(SqlLocalDate _) = quickError y
     safeConvert y@(SqlLocalTimeOfDay _) = quickError y
     safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
@@ -923,9 +924,9 @@ instance Convertible SqlValue ST.TimeDiff where
     safeConvert y@(SqlZonedTime _) = quickError y
     safeConvert y@(SqlUTCTime _) = quickError y
     safeConvert y@(SqlPOSIXTime _) = quickError y
-    safeConvert (SqlDiffTime x) = safeConvert x
+    safeConvert (SqlDiffTime x) = fmap ST.normalizeTimeDiff $ safeConvert x
     safeConvert y@(SqlEpochTime _) = quickError y
-    safeConvert (SqlTimeDiff x) = secs2td x
+    safeConvert (SqlTimeDiff x) = fmap ST.normalizeTimeDiff $ secs2td x
     safeConvert y@SqlNull = quickError y
 
 instance Convertible DiffTime SqlValue where
