@@ -932,7 +932,7 @@ instance Convertible SqlValue ST.TimeDiff where
 instance Convertible DiffTime SqlValue where
     safeConvert = return . SqlDiffTime . fromRational . toRational
 instance Convertible SqlValue DiffTime where
-    safeConvert (SqlString x) = read' x >>= return . fromInteger
+    safeConvert (SqlString x) = fmap fromRational $ readRational x
     safeConvert (SqlByteString x) = safeConvert . SqlString . BUTF8.toString $ x
     safeConvert (SqlInt32 x) = return . fromIntegral $ x
     safeConvert (SqlInt64 x) = return . fromIntegral $ x

@@ -5,7 +5,8 @@ module Main where
 
 import Test.Hspec
 import Test.Hspec.QuickCheck
-import Test.QuickCheck
+import Test.QuickCheck hiding (Result(..))
+import Test.QuickCheck.Property(succeeded, failed, Result(..))
 import Test.QuickCheck.Instances ()
 import Database.HDBC.SqlValue (toSql, fromSql, SqlValue)
 
@@ -32,10 +33,6 @@ instance Eq ZonedTime where
              -- && zonedTimeZone a == zonedTimeZone b
 
     
-
-commonChecks :: (Convertible a SqlValue, Convertible SqlValue a, Eq a) => a -> Bool
-commonChecks a = (a == (fromSql $ toSql a))
-                 && (a == (fromSql $ toSql (fromSql $ toSql a :: B.ByteString)))
 
 clockTimeChecks :: ST.ClockTime -> Bool
 clockTimeChecks c = dteq c (fromSql $ toSql c)
@@ -82,8 +79,36 @@ zonedTimeCheck t = diffUTCTime a b <= 1
     a = zonedTimeToUTC t
     b = zonedTimeToUTC $ fromSql $ toSql t
 
-timeOfDayTimeZoneChecks :: (TimeOfDay, TimeZone) -> Bool
-timeOfDayTimeZoneChecks = undefined
+commonChecks :: (Convertible a SqlValue, Convertible SqlValue a, Eq a, Show a) => a -> Result
+commonChecks x = runQC $ do
+  qcEQ x $ fromSql $ toSql x
+  qcEQ x $ fromSql $ toSql (fromSql $ toSql x :: B.ByteString)
+
+calendarTimeChecks :: ST.CalendarTime -> Result
+calendarTimeChecks c = runQC $ do
+  qcEQ c $ fromSql $ toSql c
+  qcEQ (c {ST.ctTZName = ""}) $ (fromSql $ toSql (fromSql $ toSql c :: B.ByteString)) {ST.ctTZName = ""} -- timezone name does not save
+
+timeOfDayTimeZoneChecks :: (TimeOfDay, TimeZone) -> Result
+timeOfDayTimeZoneChecks x = runQC $ do
+  qcEQTZ x $ fromSql $ toSql x
+  qcEQTZ x $ fromSql $ toSql (fromSql $ toSql x :: B.ByteString)
+  where
+    qcEQTZ x@(a, b) y@(aa, bb) = if a == aa && (b {timeZoneName = ""}) == (bb {timeZoneName = ""})
+                             then Right ()
+                             else Left $ show x ++ "\n is too different to \n" ++ show y
+  
+
+  
+qcEQ :: (Eq a, Show a) => a -> a -> Either String ()
+qcEQ a b = if a == b
+           then Right ()
+           else Left $ show a ++ "\nis not equal to\n" ++ show b
+
+runQC :: Either String a -> Result
+runQC a = case a of
+  Right _ -> succeeded
+  Left s -> failed {reason = s}
   
 sqlvalues :: Spec
 sqlvalues = describe "SqlValue should be convertible" $ do
@@ -104,7 +129,7 @@ sqlvalues = describe "SqlValue should be convertible" $ do
   prop "with Rational" $ \(r :: Rational) -> commonChecks r
   prop "with Day" $ \(d :: Day) -> commonChecks d
   prop "with TimeOfDay" $ \(tod :: TimeOfDay) -> commonChecks tod
-  prop "with (TimeOfDay, TimeZone)" timeOfDayTimeZoneChecks 
+  prop "with (TimeOfDay, TimeZone)" $ \(t :: TimeOfDay, tz :: TimeZone) -> timeOfDayTimeZoneChecks (t, tz)
   prop "with LocalTime" $ \(lt :: LocalTime) -> commonChecks lt
   prop "with ZonedTime" $ zonedTimeCheck
   prop "with UTCTime" $ \(ut :: UTCTime) -> commonChecks ut
@@ -113,7 +138,7 @@ sqlvalues = describe "SqlValue should be convertible" $ do
   prop "with ClockTime" $ \(ct :: ST.ClockTime) -> clockTimeChecks ct
   -- prop "with TimeDiff" $ forAll genTimeDiff timeDiffChecks -- FIXME: the problem with conversion is detected somewhere in convertible, I belive...
   prop "with DiffTime" $ \(td :: DiffTime) -> commonChecks td
-  prop "with CalendarTime" $ \(ct :: ST.CalendarTime) -> commonChecks ct
+  prop "with CalendarTime" $ \(ct :: ST.CalendarTime) -> calendarTimeChecks ct
   prop "with Maybe Int" $ \(mi :: Maybe Int) -> mi == (fromSql $ toSql mi) -- can not represent Null as ByteString
 
 main = do
