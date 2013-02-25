@@ -14,6 +14,8 @@ import qualified Data.ByteString.Lazy as BSL
 import Data.Char(ord,toUpper)
 import Data.Word
 import Data.Int
+import Data.Decimal
+import Data.UUID
 import qualified System.Time as ST
 import Data.Time
 import Data.Time.Clock.POSIX
@@ -26,7 +28,7 @@ import qualified Data.Text.Lazy as TL
 
 quickError :: (Typeable a, Convertible SqlValue a) => SqlValue -> ConvertResult a
 quickError sv = convError "incompatible types" sv
-  
+
 {- | Convert a value to an 'SqlValue'.  This function is simply
 a restricted-type wrapper around 'convert'.  See extended notes on 'SqlValue'. -}
 toSql :: Convertible a SqlValue => a -> SqlValue
@@ -68,7 +70,7 @@ HDBC driver interfaces will do their best to use the most accurate and
 efficient way to send a particular value to the database server.
 
 Values read back from the server are constructed with the most appropriate 'SqlValue'
-constructor.  'fromSql' or 'safeFromSql' 
+constructor.  'fromSql' or 'safeFromSql'
 can then be used to convert them into whatever type
 is needed locally in Haskell.
 
@@ -122,7 +124,7 @@ type lacks timezone information, you ought not to use ZonedTime, but
 instead LocalTime or UTCTime.  Database type systems are not always as rich
 as Haskell.  For instance, for data stored in a TIMESTAMP
 WITHOUT TIME ZONE column, HDBC may not be able to tell if it is intended
-as UTCTime or LocalTime data, and will happily convert it to both, 
+as UTCTime or LocalTime data, and will happily convert it to both,
 upon your request.  It is
 your responsibility to ensure that you treat timezone issues with due care.
 
@@ -187,55 +189,60 @@ expected to be removed in a future version.  Although these two constructures wi
 be removed, support for marshalling to and from the old System.Time data will be
 maintained as long as System.Time is, simply using the newer data types for conversion.
 -}
-data SqlValue = SqlString String 
-              | SqlByteString B.ByteString
-              | SqlWord32 Word32
-              | SqlWord64 Word64
-              | SqlInt32 Int32
-              | SqlInt64 Int64
-              | SqlInteger Integer
-              | SqlChar Char
-              | SqlBool Bool
-              | SqlDouble Double
-              | SqlRational Rational
-              | SqlLocalDate Day            -- ^ Local YYYY-MM-DD (no timezone)
-              | SqlLocalTimeOfDay TimeOfDay -- ^ Local HH:MM:SS (no timezone)
-              | SqlZonedLocalTimeOfDay TimeOfDay TimeZone -- ^ Local HH:MM:SS -HHMM.  Converts to and from (TimeOfDay, TimeZone).
-              | SqlLocalTime LocalTime      -- ^ Local YYYY-MM-DD HH:MM:SS (no timezone)
-              | SqlZonedTime ZonedTime      -- ^ Local YYYY-MM-DD HH:MM:SS -HHMM.  Considered equal if both convert to the same UTC time.
-              | SqlUTCTime UTCTime          -- ^ UTC YYYY-MM-DD HH:MM:SS
-              | SqlDiffTime NominalDiffTime -- ^ Calendar diff between seconds.  Rendered as Integer when converted to String, but greater precision may be preserved for other types or to underlying database.
-              | SqlPOSIXTime POSIXTime      -- ^ Time as seconds since midnight Jan 1 1970 UTC.  Integer rendering as for 'SqlDiffTime'.
-              | SqlEpochTime Integer      -- ^ DEPRECATED Representation of ClockTime or CalendarTime.  Use SqlPOSIXTime instead.
-              | SqlTimeDiff Integer -- ^ DEPRECATED Representation of TimeDiff.  Use SqlDiffTime instead.
-              | SqlNull         -- ^ NULL in SQL or Nothing in Haskell
-     deriving (Show)
+data SqlValue =
+  {- | Arbitrary precision value -}
+  SqlDecimal Decimal
+  | SqlWord32 Word32
+  | SqlWord64 Word64
+  | SqlInt32 Int32
+  | SqlInt64 Int64
+  | SqlInteger Integer
+  | SqlDouble Double
+  | SqlString String
+  | SqlByteString B.ByteString
+  | SqlBool Bool
+    {- | Represent bit field with 64 bits -}
+  | SqlBitField Word64
+    {- | UUID value http://en.wikipedia.org/wiki/UUID -}
+  | SqlUUID UUID
+
+  | SqlUTCTime UTCTime          -- ^ UTC YYYY-MM-DD HH:MM:SS
+  | SqlLocalDate Day            -- ^ Local YYYY-MM-DD (no timezone)
+  | SqlLocalTimeOfDay TimeOfDay -- ^ Local HH:MM:SS (no timezone)
+  | SqlLocalTime LocalTime      -- ^ Local YYYY-MM-DD HH:MM:SS (no timezone)
+
+    {- | The value of current datetime on the server.
+      Different database drivers will convert it to the appropriate literal/function.
+      Not used for retriving data from the database, just for writing to.
+    -}
+  | SqlNow
+  | SqlNull         -- ^ NULL in SQL or Nothing in Haskell
+  deriving (Show)
 
 instance Typeable SqlValue where
     typeOf _ = mkTypeName "SqlValue"
 
 instance Eq SqlValue where
-    SqlString a == SqlString b = a == b
-    SqlByteString a == SqlByteString b = a == b
-    SqlWord32 a == SqlWord32 b = a == b
-    SqlWord64 a == SqlWord64 b = a == b
-    SqlInt32 a == SqlInt32 b = a == b
-    SqlInt64 a == SqlInt64 b = a == b
-    SqlInteger a == SqlInteger b = a == b
-    SqlChar a == SqlChar b = a == b
-    SqlBool a == SqlBool b = a == b
-    SqlDouble a == SqlDouble b = a == b
-    SqlRational a == SqlRational b = a == b
-    SqlLocalTimeOfDay a == SqlLocalTimeOfDay b = a == b
-    SqlZonedLocalTimeOfDay a b == SqlZonedLocalTimeOfDay c d = a == c && b == d
-    SqlLocalTime a == SqlLocalTime b = a == b
-    SqlLocalDate a == SqlLocalDate b = a == b
-    SqlZonedTime a == SqlZonedTime b = zonedTimeToUTC a == zonedTimeToUTC b
-    SqlUTCTime a == SqlUTCTime b = a == b
-    SqlPOSIXTime a == SqlPOSIXTime b = a == b
-    SqlDiffTime a == SqlDiffTime b = a == b
-    SqlEpochTime a == SqlEpochTime b = a == b
-    SqlTimeDiff a == SqlTimeDiff b = a == b
+
+    (SqlDecimal a)        == (SqlDecimal b)         = a == b
+    (SqlWord32 a)         == (SqlWord32 b)          = a == b
+    (SqlWord64 a)         == (SqlWord64 b)          = a == b
+    (SqlInt32 a)          == (SqlInt32 b)           = a == b
+    (SqlInt64 a)          == (SqlInt64 b)           = a == b
+    (SqlInteger a)        == (SqlInteger b)         = a == b
+    (SqlDouble a)         == (SqlDouble b)          = a == b
+    (SqlString a)         == (SqlString b)          = a == b
+    (SqlByteString a)     == (SqlByteString b)      = a == b
+    (SqlBool a)           == (SqlBool b)            = a == b
+    (SqlBitField a)       == (SqlBitField b)        = a == b
+    (SqlUUID a)           == (SqlUUID b)            = a == b
+    (SqlUTCTime a)        == (SqlUTCTime b)         = a == b
+    (SqlLocalDate a)      == (SqlLocalDate b)       = a == b
+    (SqlLocalTimeOfDay a) == (SqlLocalTimeOfDay b)  = a == b
+    (SqlLocalTime a)      == (SqlLocalTime b)       = a == b
+    SqlNow == SqlNow = False     -- Concrete value will be determined on the database
+    _ == SqlNow = False
+    SqlNow == _ = False
     SqlNull == SqlNull = True
     SqlNull == _ = False
     _ == SqlNull = False
@@ -243,7 +250,7 @@ instance Eq SqlValue where
       Left _ -> False
       Right r -> r
       where
-        convres = do 
+        convres = do
           x <- ((safeFromSql a)::ConvertResult String)
           y <- ((safeFromSql b)::ConvertResult String)
           return $ x == y
@@ -254,39 +261,25 @@ instance Convertible SqlValue SqlValue where
 instance Convertible String SqlValue where
     safeConvert = return . SqlString
 instance Convertible SqlValue String where
-    safeConvert (SqlString x) = return x
-    safeConvert (SqlByteString x) = return . BUTF8.toString $ x
-    safeConvert (SqlInt32 x) = return . show $ x
-    safeConvert (SqlInt64 x) = return . show $ x
-    safeConvert (SqlWord32 x) = return . show $ x
-    safeConvert (SqlWord64 x) = return . show $ x
-    safeConvert (SqlInteger x) = return . show $ x
-    safeConvert (SqlChar x) = return [x]
-    safeConvert (SqlBool x) = return . show $ x
-    safeConvert (SqlDouble x) = return . show $ x
-    safeConvert (SqlRational x) = return . show $ x
-    safeConvert (SqlLocalDate x) = 
-        return . formatTime defaultTimeLocale (iso8601DateFormat Nothing) $ x
-    safeConvert (SqlLocalTimeOfDay x) = 
-        return . formatTime defaultTimeLocale "%T%Q" $ x
-    safeConvert (SqlZonedLocalTimeOfDay tod tz) = 
-        return $ formatTime defaultTimeLocale "%T%Q " tod ++
-                 formatTime defaultTimeLocale "%z" tz
-    safeConvert (SqlLocalTime x) = 
-        return . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q")) $ x
-    safeConvert (SqlZonedTime x) = 
-        return . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q %z")) $ x
-    safeConvert (SqlUTCTime x) = 
-        return . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q")) $ x
-    safeConvert (SqlDiffTime x) = return $ showFixed True fixedval
-            where fixedval :: Pico
-                  fixedval = fromRational . toRational $ x
-    safeConvert (SqlPOSIXTime x) = return $ showFixed True fixedval
-            where fixedval :: Pico
-                  fixedval = fromRational . toRational $ x
-    safeConvert (SqlEpochTime x) = return . show $ x
-    safeConvert (SqlTimeDiff x) = return . show $ x
-    safeConvert y@(SqlNull) = quickError y
+
+  safeConvert (SqlDecimal a)        = return $ show a
+  safeConvert (SqlWord32 a)         = return $ show a
+  safeConvert (SqlWord64 a)         = return $ show a
+  safeConvert (SqlInt32 a)          = return $ show a
+  safeConvert (SqlInt64 a)          = return $ show a
+  safeConvert (SqlInteger a)        = return $ show a
+  safeConvert (SqlDouble a)         = return $ show a
+  safeConvert (SqlString a)         = return a
+  safeConvert (SqlByteString x)     = return . BUTF8.toString $ x
+  safeConvert (SqlBool a)           = return $ show a
+  safeConvert (SqlBitField a)       = return $ show a
+  safeConvert (SqlUUID a)           = return $ show a
+  safeConvert (SqlUTCTime a)        = return $ show a
+  safeConvert (SqlLocalDate a)      = return $ show a
+  safeConvert (SqlLocalTimeOfDay a) = return $ show a
+  safeConvert (SqlLocalTime a)      = return $ show a
+  safeConvert x@SqlNow  = quickError x
+  safeConvert x@SqlNull = quickError x
 
 instance Convertible TS.Text SqlValue where
     safeConvert = return . SqlString . TS.unpack
@@ -321,283 +314,189 @@ instance Convertible SqlValue BSL.ByteString where
 instance Convertible Int SqlValue where
     safeConvert x = fmap SqlInt64 $ safeConvert x
 instance Convertible SqlValue Int where
-    safeConvert (SqlString x) = read' x
-    safeConvert (SqlByteString x) = (read' . BUTF8.toString) x
-    safeConvert (SqlInt32 x) = safeConvert x
-    safeConvert (SqlInt64 x) = safeConvert x
-    safeConvert (SqlWord32 x) = safeConvert x
-    safeConvert (SqlWord64 x) = safeConvert x
-    safeConvert (SqlInteger x) = safeConvert x
-    safeConvert (SqlChar x) = safeConvert x
-    safeConvert (SqlBool x) = return (if x then 1 else 0)
-    safeConvert (SqlDouble x) = safeConvert x
-    safeConvert (SqlRational x) = safeConvert x
-    safeConvert y@(SqlLocalDate _) = viaInteger y fromIntegral
-    safeConvert y@(SqlLocalTimeOfDay _) = viaInteger y fromIntegral 
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert y@(SqlLocalTime _) = viaInteger y fromIntegral 
-    safeConvert y@(SqlZonedTime _) = viaInteger y fromIntegral
-    safeConvert (SqlUTCTime x) = safeConvert x
-    safeConvert (SqlDiffTime x) = safeConvert x
-    safeConvert (SqlPOSIXTime x) = safeConvert x
-    safeConvert (SqlEpochTime x) = safeConvert x
-    safeConvert (SqlTimeDiff x) = safeConvert x
-    safeConvert y@(SqlNull) = quickError y
+  safeConvert (SqlDecimal a)          = safeConvert a
+  safeConvert (SqlWord32 a)           = safeConvert a
+  safeConvert (SqlWord64 a)           = safeConvert a
+  safeConvert (SqlInt32 a)            = safeConvert a
+  safeConvert (SqlInt64 a)            = safeConvert a
+  safeConvert (SqlInteger a)          = safeConvert a
+  safeConvert (SqlDouble a)           = safeConvert a
+  safeConvert (SqlString a)           = read' a
+  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlBool a)             = return $ if a then 1 else 0
+  safeConvert (SqlBitField a)         = safeConvert a
+  safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
+  safeConvert x@(SqlUTCTime _)        = quickError x
+  safeConvert x@(SqlLocalDate _)      = quickError x
+  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
+  safeConvert x@(SqlLocalTime _)      = quickError x
+  safeConvert x@SqlNow                = quickError x
+  safeConvert y@(SqlNull)             = quickError y
 
 instance Convertible Int32 SqlValue where
     safeConvert = return . SqlInt32
 instance Convertible SqlValue Int32 where
-    safeConvert (SqlString x) = read' x
-    safeConvert (SqlByteString x) = (read' . BUTF8.toString) x
-    safeConvert (SqlInt32 x) = return x
-    safeConvert (SqlInt64 x) = safeConvert x
-    safeConvert (SqlWord32 x) = safeConvert x
-    safeConvert (SqlWord64 x) = safeConvert x
-    safeConvert (SqlInteger x) = safeConvert x
-    safeConvert (SqlChar x) = safeConvert x
-    safeConvert (SqlBool x) = return (if x then 1 else 0)
-    safeConvert (SqlDouble x) = safeConvert x
-    safeConvert (SqlRational x) = safeConvert x
-    safeConvert y@(SqlLocalDate _) = viaInteger y fromIntegral
-    safeConvert y@(SqlLocalTimeOfDay _) = viaInteger y fromIntegral
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert y@(SqlLocalTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlZonedTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlUTCTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlDiffTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlPOSIXTime _) = viaInteger y fromIntegral
-    safeConvert (SqlEpochTime x) = safeConvert x
-    safeConvert (SqlTimeDiff x) = safeConvert x
-    safeConvert y@(SqlNull) = quickError y
+  safeConvert (SqlDecimal a)          = safeConvert a
+  safeConvert (SqlWord32 a)           = safeConvert a
+  safeConvert (SqlWord64 a)           = safeConvert a
+  safeConvert (SqlInt32 a)            = return a
+  safeConvert (SqlInt64 a)            = safeConvert a
+  safeConvert (SqlInteger a)          = safeConvert a
+  safeConvert (SqlDouble a)           = safeConvert a
+  safeConvert (SqlString a)           = read' a
+  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlBool a)             = return $ if a then 1 else 0
+  safeConvert (SqlBitField a)         = safeConvert a
+  safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
+  safeConvert x@(SqlUTCTime _)        = quickError x
+  safeConvert x@(SqlLocalDate _)      = quickError x
+  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
+  safeConvert x@(SqlLocalTime _)      = quickError x
+  safeConvert x@SqlNow                = quickError x
+  safeConvert y@(SqlNull)             = quickError y
 
 instance Convertible Int64 SqlValue where
     safeConvert = return . SqlInt64
 instance Convertible SqlValue Int64 where
-    safeConvert (SqlString x) = read' x
-    safeConvert (SqlByteString x) = (read' . BUTF8.toString) x
-    safeConvert (SqlInt32 x) = safeConvert x
-    safeConvert (SqlInt64 x) = return x
-    safeConvert (SqlWord32 x) = safeConvert x
-    safeConvert (SqlWord64 x) = safeConvert x
-    safeConvert (SqlInteger x) = safeConvert x
-    safeConvert (SqlChar x) = safeConvert x
-    safeConvert (SqlBool x) = return (if x then 1 else 0)
-    safeConvert (SqlDouble x) = safeConvert x
-    safeConvert (SqlRational x) = safeConvert x
-    safeConvert y@(SqlLocalDate _) = viaInteger y fromIntegral
-    safeConvert y@(SqlLocalTimeOfDay _) = viaInteger y fromIntegral
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert y@(SqlLocalTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlZonedTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlUTCTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlDiffTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlPOSIXTime _) = viaInteger y fromIntegral
-    safeConvert (SqlEpochTime x) = safeConvert x
-    safeConvert (SqlTimeDiff x) = safeConvert x
-    safeConvert y@(SqlNull) = quickError y
+  safeConvert (SqlDecimal a)          = safeConvert a
+  safeConvert (SqlWord32 a)           = safeConvert a
+  safeConvert (SqlWord64 a)           = safeConvert a
+  safeConvert (SqlInt32 a)            = safeConvert a
+  safeConvert (SqlInt64 a)            = return a
+  safeConvert (SqlInteger a)          = safeConvert a
+  safeConvert (SqlDouble a)           = safeConvert a
+  safeConvert (SqlString a)           = read' a
+  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlBool a)             = return $ if a then 1 else 0
+  safeConvert (SqlBitField a)         = safeConvert a
+  safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
+  safeConvert x@(SqlUTCTime _)        = quickError x
+  safeConvert x@(SqlLocalDate _)      = quickError x
+  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
+  safeConvert x@(SqlLocalTime _)      = quickError x
+  safeConvert x@SqlNow                = quickError x
+  safeConvert y@(SqlNull)             = quickError y
 
 instance Convertible Word32 SqlValue where
     safeConvert = return . SqlWord32
 instance Convertible SqlValue Word32 where
-    safeConvert (SqlString x) = read' x
-    safeConvert (SqlByteString x) = (read' . BUTF8.toString) x
-    safeConvert (SqlInt32 x) = safeConvert x
-    safeConvert (SqlInt64 x) = safeConvert x
-    safeConvert (SqlWord32 x) = return x
-    safeConvert (SqlWord64 x) = safeConvert x
-    safeConvert (SqlInteger x) = safeConvert x
-    safeConvert (SqlChar x) = safeConvert x
-    safeConvert (SqlBool x) = return (if x then 1 else 0)
-    safeConvert (SqlDouble x) = safeConvert x
-    safeConvert (SqlRational x) = safeConvert x
-    safeConvert y@(SqlLocalDate _) = viaInteger y fromIntegral
-    safeConvert y@(SqlLocalTimeOfDay _) = viaInteger y fromIntegral
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert y@(SqlLocalTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlZonedTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlUTCTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlDiffTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlPOSIXTime _) = viaInteger y fromIntegral
-    safeConvert (SqlEpochTime x) = safeConvert x
-    safeConvert (SqlTimeDiff x) = safeConvert x
-    safeConvert y@(SqlNull) = quickError y
+  safeConvert (SqlDecimal a)          = safeConvert a
+  safeConvert (SqlWord32 a)           = return a
+  safeConvert (SqlWord64 a)           = safeConvert a
+  safeConvert (SqlInt32 a)            = safeConvert a
+  safeConvert (SqlInt64 a)            = safeConvert a
+  safeConvert (SqlInteger a)          = safeConvert a
+  safeConvert (SqlDouble a)           = safeConvert a
+  safeConvert (SqlString a)           = read' a
+  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlBool a)             = return $ if a then 1 else 0
+  safeConvert (SqlBitField a)         = safeConvert a
+  safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
+  safeConvert x@(SqlUTCTime _)        = quickError x
+  safeConvert x@(SqlLocalDate _)      = quickError x
+  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
+  safeConvert x@(SqlLocalTime _)      = quickError x
+  safeConvert x@SqlNow                = quickError x
+  safeConvert y@(SqlNull)             = quickError y
 
 instance Convertible Word64 SqlValue where
     safeConvert = return . SqlWord64
 instance Convertible SqlValue Word64 where
-    safeConvert (SqlString x) = read' x
-    safeConvert (SqlByteString x) = (read' . BUTF8.toString) x
-    safeConvert (SqlInt32 x) = safeConvert x
-    safeConvert (SqlInt64 x) = safeConvert x
-    safeConvert (SqlWord32 x) = safeConvert x
-    safeConvert (SqlWord64 x) = return x
-    safeConvert (SqlInteger x) = safeConvert x
-    safeConvert (SqlChar x) = safeConvert x
-    safeConvert (SqlBool x) = return (if x then 1 else 0)
-    safeConvert (SqlDouble x) = safeConvert x
-    safeConvert (SqlRational x) = safeConvert x
-    safeConvert y@(SqlLocalDate _) = viaInteger y fromIntegral
-    safeConvert y@(SqlLocalTimeOfDay _) = viaInteger y fromIntegral
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert y@(SqlLocalTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlZonedTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlUTCTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlDiffTime _) = viaInteger y fromIntegral
-    safeConvert y@(SqlPOSIXTime _) = viaInteger y fromIntegral
-    safeConvert (SqlEpochTime x) = safeConvert x
-    safeConvert (SqlTimeDiff x) = safeConvert x
-    safeConvert y@(SqlNull) = quickError y
+  safeConvert (SqlDecimal a)          = safeConvert a
+  safeConvert (SqlWord32 a)           = safeConvert a
+  safeConvert (SqlWord64 a)           = return a
+  safeConvert (SqlInt32 a)            = safeConvert a
+  safeConvert (SqlInt64 a)            = safeConvert a
+  safeConvert (SqlInteger a)          = safeConvert a
+  safeConvert (SqlDouble a)           = safeConvert a
+  safeConvert (SqlString a)           = read' a
+  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlBool a)             = return $ if a then 1 else 0
+  safeConvert (SqlBitField a)         = safeConvert a
+  safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
+  safeConvert x@(SqlUTCTime _)        = quickError x
+  safeConvert x@(SqlLocalDate _)      = quickError x
+  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
+  safeConvert x@(SqlLocalTime _)      = quickError x
+  safeConvert x@SqlNow                = quickError x
+  safeConvert y@(SqlNull)             = quickError y
 
 instance Convertible Integer SqlValue where
     safeConvert = return . SqlInteger
 instance Convertible SqlValue Integer where
-    safeConvert (SqlString x) = read' x
-    safeConvert (SqlByteString x) = (read' . BUTF8.toString) x
-    safeConvert (SqlInt32 x) = safeConvert x
-    safeConvert (SqlInt64 x) = safeConvert x
-    safeConvert (SqlWord32 x) = safeConvert x
-    safeConvert (SqlWord64 x) = safeConvert x
-    safeConvert (SqlInteger x) = return x
-    safeConvert (SqlChar x) = safeConvert x
-    safeConvert (SqlBool x) = return (if x then 1 else 0)
-    safeConvert (SqlDouble x) = safeConvert x
-    safeConvert (SqlRational x) = safeConvert x
-    safeConvert (SqlLocalDate x) = return . toModifiedJulianDay $ x
-    safeConvert (SqlLocalTimeOfDay x) = 
-        return . fromIntegral . fromEnum . timeOfDayToTime $ x
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert y@(SqlLocalTime _) = quickError y
-    safeConvert (SqlZonedTime x) = 
-        return . truncate . utcTimeToPOSIXSeconds . zonedTimeToUTC $ x
-    safeConvert (SqlUTCTime x) = safeConvert x
-    safeConvert (SqlDiffTime x) = safeConvert x
-    safeConvert (SqlPOSIXTime x) = safeConvert x
-    safeConvert (SqlEpochTime x) = return x
-    safeConvert (SqlTimeDiff x) = return x
-    safeConvert y@(SqlNull) = quickError y
+  safeConvert (SqlDecimal a)          = safeConvert a
+  safeConvert (SqlWord32 a)           = safeConvert a
+  safeConvert (SqlWord64 a)           = safeConvert a
+  safeConvert (SqlInt32 a)            = safeConvert a
+  safeConvert (SqlInt64 a)            = safeConvert a
+  safeConvert (SqlInteger a)          = return a
+  safeConvert (SqlDouble a)           = safeConvert a
+  safeConvert (SqlString a)           = read' a
+  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlBool a)             = return $ if a then 1 else 0
+  safeConvert (SqlBitField a)         = safeConvert a
+  safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
+  safeConvert x@(SqlUTCTime _)        = quickError x
+  safeConvert x@(SqlLocalDate _)      = quickError x
+  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
+  safeConvert x@(SqlLocalTime _)      = quickError x
+  safeConvert x@SqlNow                = quickError x
+  safeConvert y@(SqlNull)             = quickError y
 
 instance Convertible Bool SqlValue where
     safeConvert = return . SqlBool
 instance Convertible SqlValue Bool where
-    safeConvert y@(SqlString x) = 
-        case map toUpper x of
-          "TRUE" -> Right True
-          "T" -> Right True
-          "FALSE" -> Right False
-          "F" -> Right False
-          "0" -> Right False
-          "1" -> Right True
-          _ -> convError "Cannot parse given String as Bool" y
-    safeConvert (SqlByteString x) = (safeConvert . SqlString . BUTF8.toString) x
-    safeConvert (SqlInt32 x) = numToBool x
-    safeConvert (SqlInt64 x) = numToBool x
-    safeConvert (SqlWord32 x) = numToBool x
-    safeConvert (SqlWord64 x) = numToBool x
-    safeConvert (SqlInteger x) = numToBool x
-    safeConvert (SqlChar x) = numToBool (ord x)
-    safeConvert (SqlBool x) = return x
-    safeConvert (SqlDouble x) = numToBool x
-    safeConvert (SqlRational x) = numToBool x
-    safeConvert y@(SqlLocalDate _) = quickError y
-    safeConvert y@(SqlLocalTimeOfDay _) = quickError y
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert y@(SqlLocalTime _) = quickError y
-    safeConvert y@(SqlZonedTime _) = quickError y
-    safeConvert y@(SqlUTCTime _) = quickError y
-    safeConvert y@(SqlDiffTime _) = quickError y
-    safeConvert y@(SqlPOSIXTime _) = quickError y
-    safeConvert (SqlEpochTime x) = numToBool x
-    safeConvert (SqlTimeDiff x) = numToBool x
-    safeConvert y@(SqlNull) = quickError y
+  safeConvert (SqlDecimal a)          = numToBool a
+  safeConvert (SqlWord32 a)           = numToBool a
+  safeConvert (SqlWord64 a)           = numToBool a
+  safeConvert (SqlInt32 a)            = numToBool a
+  safeConvert (SqlInt64 a)            = numToBool a
+  safeConvert (SqlInteger a)          = numToBool a
+  safeConvert (SqlDouble a)           = numToBool a
+  safeConvert y@(SqlString x) =
+    case map toUpper x of
+      "TRUE" -> Right True
+      "T" -> Right True
+      "FALSE" -> Right False
+      "F" -> Right False
+      "0" -> Right False
+      "1" -> Right True
+      _ -> convError "Cannot parse given String as Bool" y
+  safeConvert (SqlByteString x)       = (safeConvert . SqlString . BUTF8.toString) x
+  safeConvert (SqlBool a)             = return a
+  safeConvert (SqlBitField a)         = numToBool a
+  safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to Bool has no sense
+  safeConvert x@(SqlUTCTime _)        = quickError x
+  safeConvert x@(SqlLocalDate _)      = quickError x
+  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
+  safeConvert x@(SqlLocalTime _)      = quickError x
+  safeConvert x@SqlNow                = quickError x
+  safeConvert y@(SqlNull)             = quickError y
 
 numToBool :: (Eq a, Num a) => a -> ConvertResult Bool
 numToBool x = Right (x /= 0)
 
-instance Convertible Char SqlValue where
-    safeConvert = return . SqlChar
-instance Convertible SqlValue Char where
-    safeConvert (SqlString [x]) = return x
-    safeConvert y@(SqlString _) = convError "String length /= 1" y
-    safeConvert (SqlByteString x) =
-          safeConvert . SqlString . BUTF8.toString $ x
-    safeConvert y@(SqlInt32 _) = quickError y
-    safeConvert y@(SqlInt64 _) = quickError y
-    safeConvert y@(SqlWord32 _) = quickError y
-    safeConvert y@(SqlWord64 _) = quickError y
-    safeConvert y@(SqlInteger _) = quickError y
-    safeConvert (SqlChar x) = return x
-    safeConvert (SqlBool x) = return (if x then '1' else '0')
-    safeConvert y@(SqlDouble _) = quickError y
-    safeConvert y@(SqlRational _) = quickError y
-    safeConvert y@(SqlLocalDate _) = quickError y
-    safeConvert y@(SqlLocalTimeOfDay _) = quickError y
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert y@(SqlLocalTime _) = quickError y
-    safeConvert y@(SqlZonedTime _) = quickError y
-    safeConvert y@(SqlUTCTime _) = quickError y
-    safeConvert y@(SqlDiffTime _) = quickError y
-    safeConvert y@(SqlPOSIXTime _) = quickError y
-    safeConvert y@(SqlEpochTime _) = quickError y
-    safeConvert y@(SqlTimeDiff _) = quickError y
-    safeConvert y@(SqlNull) = quickError y
-
 instance Convertible Double SqlValue where
     safeConvert = return . SqlDouble
 instance Convertible SqlValue Double where
-    safeConvert (SqlString x) = read' x
-    safeConvert (SqlByteString x) = (read' . BUTF8.toString) x
-    safeConvert (SqlInt32 x) = safeConvert x
-    safeConvert (SqlInt64 x) = safeConvert x
-    safeConvert (SqlWord32 x) = safeConvert x
-    safeConvert (SqlWord64 x) = safeConvert x
-    safeConvert (SqlInteger x) = safeConvert x
-    safeConvert (SqlChar x) = return . fromIntegral . fromEnum $ x
-    safeConvert (SqlBool x) = return (if x then 1.0 else 0.0)
-    safeConvert (SqlDouble x) = return x
-    safeConvert (SqlRational x) = safeConvert x
-    safeConvert y@(SqlLocalDate _) = ((safeConvert y)::ConvertResult Integer) >>= 
-                                     (return . fromIntegral)
-    safeConvert (SqlLocalTimeOfDay x) = 
-        return . fromRational . toRational . timeOfDayToTime $ x
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert y@(SqlLocalTime _) = quickError y
-    safeConvert (SqlZonedTime x) = 
-        safeConvert . SqlUTCTime . zonedTimeToUTC $ x
-    safeConvert (SqlUTCTime x) = 
-        return . fromRational . toRational . utcTimeToPOSIXSeconds $ x
-    safeConvert (SqlDiffTime x) = safeConvert x
-    safeConvert (SqlPOSIXTime x) = safeConvert x
-    safeConvert (SqlEpochTime x) = safeConvert x
-    safeConvert (SqlTimeDiff x) = safeConvert x
-    safeConvert y@(SqlNull) = quickError y
-
-instance Convertible Rational SqlValue where
-    safeConvert = return . SqlRational
-instance Convertible SqlValue Rational where
-    safeConvert (SqlString x) = readRational x
-    safeConvert (SqlByteString x) = (readRational . BUTF8.toString) x
-    safeConvert (SqlInt32 x) = safeConvert x
-    safeConvert (SqlInt64 x) = safeConvert x
-    safeConvert (SqlWord32 x) = safeConvert x
-    safeConvert (SqlWord64 x) = safeConvert x
-    safeConvert (SqlInteger x) = safeConvert x
-    safeConvert (SqlChar x) = return . fromIntegral . fromEnum $ x
-    safeConvert (SqlBool x) = return $ if x then fromIntegral (1::Int) 
-                                       else fromIntegral (0::Int)
-    safeConvert (SqlDouble x) = safeConvert x
-    safeConvert (SqlRational x) = return x
-    safeConvert y@(SqlLocalDate _) = ((safeConvert y)::ConvertResult Integer) >>= 
-                                     (return . fromIntegral)
-    safeConvert (SqlLocalTimeOfDay x) = return . toRational . timeOfDayToTime $ x
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert y@(SqlLocalTime _) = quickError y
-    safeConvert (SqlZonedTime x) = safeConvert . SqlUTCTime . zonedTimeToUTC $ x
-    safeConvert (SqlUTCTime x) = safeConvert x
-    safeConvert (SqlDiffTime x) = safeConvert x
-    safeConvert (SqlPOSIXTime x) = safeConvert x
-    safeConvert (SqlEpochTime x) = return . fromIntegral $ x
-    safeConvert (SqlTimeDiff x) = return . fromIntegral $ x
-    safeConvert y@(SqlNull) = quickError y
+  safeConvert (SqlDecimal a)          = safeConvert a
+  safeConvert (SqlWord32 a)           = safeConvert a
+  safeConvert (SqlWord64 a)           = safeConvert a
+  safeConvert (SqlInt32 a)            = safeConvert a
+  safeConvert (SqlInt64 a)            = safeConvert a
+  safeConvert (SqlInteger a)          = safeConvert a
+  safeConvert (SqlDouble a)           = return a
+  safeConvert (SqlString a)           = read' a
+  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlBool a)             = return $ if a then 1 else 0
+  safeConvert (SqlBitField a)         = safeConvert a
+  safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to Double has no sense
+  safeConvert x@(SqlUTCTime _)        = quickError x
+  safeConvert x@(SqlLocalDate _)      = quickError x
+  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
+  safeConvert x@(SqlLocalTime _)      = quickError x
+  safeConvert x@SqlNow                = quickError x
+  safeConvert y@(SqlNull)             = quickError y
 
 readMay :: Read a => String -> Maybe a
 readMay s = case reads s of
@@ -627,187 +526,95 @@ instance Typeable TimeOfDay where
     typeOf _ = mkTypeName "TimeOfDay"
 instance Typeable LocalTime where
     typeOf _ = mkTypeName "LocalTime"
-instance Typeable ZonedTime where
-    typeOf _ = mkTypeName "ZonedTime"
-instance Typeable DiffTime where
-    typeOf _ = mkTypeName "DiffTime"
-instance Typeable TimeZone where
-    typeOf _ = mkTypeName "TimeZone"
 #endif
-
-instance Typeable ST.ClockTime where
-    typeOf _ = mkTypeName "ClockTime"
-instance Typeable ST.TimeDiff where
-    typeOf _ = mkTypeName "TimeDiff"
 
 instance Convertible Day SqlValue where
     safeConvert = return . SqlLocalDate
 instance Convertible SqlValue Day where
-    safeConvert (SqlString x) = parseTime' (iso8601DateFormat Nothing) x
-    safeConvert (SqlByteString x) = safeConvert (SqlString (BUTF8.toString x))
-    safeConvert (SqlInt32 x) = 
-        return $ ModifiedJulianDay {toModifiedJulianDay = fromIntegral x}
-    safeConvert (SqlInt64 x) = 
-        return $ ModifiedJulianDay {toModifiedJulianDay = fromIntegral x}
-    safeConvert (SqlWord32 x) = 
-        return $ ModifiedJulianDay {toModifiedJulianDay = fromIntegral x}
-    safeConvert (SqlWord64 x) = 
-        return $ ModifiedJulianDay {toModifiedJulianDay = fromIntegral x}
-    safeConvert (SqlInteger x) = 
-        return $ ModifiedJulianDay {toModifiedJulianDay = x}
-    safeConvert y@(SqlChar _) = quickError y
-    safeConvert y@(SqlBool _) = quickError y
-    safeConvert (SqlDouble x) = 
-        return $ ModifiedJulianDay {toModifiedJulianDay = truncate x}
-    safeConvert (SqlRational x) = safeConvert . SqlDouble . fromRational $ x
-    safeConvert (SqlLocalDate x) = return x
-    safeConvert y@(SqlLocalTimeOfDay _) = quickError y
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert (SqlLocalTime x) = return . localDay $ x
-    safeConvert y@(SqlZonedTime _) = safeConvert y >>= return . localDay
-    safeConvert y@(SqlUTCTime _) = safeConvert y >>= return . localDay
-    safeConvert y@(SqlDiffTime _) = quickError y
-    safeConvert y@(SqlPOSIXTime _) = safeConvert y >>= return . localDay
-    safeConvert y@(SqlEpochTime _) = safeConvert y >>= return . localDay
-    safeConvert y@(SqlTimeDiff _) = quickError y
-    safeConvert y@(SqlNull) = quickError y
+  safeConvert x@(SqlDecimal _)                   = quickError x -- converting number to date has no sense
+  safeConvert x@(SqlWord32 _)                    = quickError x
+  safeConvert x@(SqlWord64 _)                    = quickError x
+  safeConvert x@(SqlInt32 _)                     = quickError x
+  safeConvert x@(SqlInt64 _)                     = quickError x
+  safeConvert x@(SqlInteger _)                   = quickError x
+  safeConvert x@(SqlDouble _)                    = quickError x
+  safeConvert (SqlString x)                      = parseTime' (iso8601DateFormat Nothing) x
+  safeConvert (SqlByteString x)                  = safeConvert (SqlString (BUTF8.toString x))
+  safeConvert x@(SqlBool _)                      = quickError x
+  safeConvert x@(SqlBitField _)                  = quickError x
+  safeConvert x@(SqlUUID _)                      = quickError x
+  safeConvert x@(SqlUTCTime _)                   = quickError x -- converting UTC time to local day has no sense, you must convert it to LocalTime explicitly giving TimeZone
+  safeConvert (SqlLocalDate a)                   = return a
+  safeConvert x@(SqlLocalTimeOfDay _)            = quickError x
+  safeConvert (SqlLocalTime (LocalTime {localDay = a})) = return a
+  safeConvert x@SqlNow                           = quickError x
+  safeConvert y@(SqlNull)                        = quickError y
 
 instance Convertible TimeOfDay SqlValue where
     safeConvert = return . SqlLocalTimeOfDay
 instance Convertible SqlValue TimeOfDay where
-    safeConvert (SqlString x) = parseTime' "%T%Q" x
-    safeConvert (SqlByteString x) = safeConvert (SqlString (BUTF8.toString x))
-    safeConvert (SqlInt32 x) = return . timeToTimeOfDay . fromIntegral $ x
-    safeConvert (SqlInt64 x) = return . timeToTimeOfDay . fromIntegral $ x
-    safeConvert (SqlWord32 x) = return . timeToTimeOfDay . fromIntegral $ x
-    safeConvert (SqlWord64 x) = return . timeToTimeOfDay . fromIntegral $ x
-    safeConvert (SqlInteger x) = return . timeToTimeOfDay . fromInteger $ x
-    safeConvert y@(SqlChar _) = quickError y
-    safeConvert y@(SqlBool _) = quickError y
-    safeConvert (SqlDouble x) = 
-        return . timeToTimeOfDay . fromIntegral $ ((truncate x)::Integer)
-    safeConvert (SqlRational x) = safeConvert . SqlDouble . fromRational $ x
-    safeConvert y@(SqlLocalDate _) = quickError y
-    safeConvert (SqlLocalTimeOfDay x) = return x
-    safeConvert (SqlZonedLocalTimeOfDay tod _) = return tod
-    safeConvert (SqlLocalTime x) = return . localTimeOfDay $ x
-    safeConvert y@(SqlZonedTime _) = safeConvert y >>= return . localTimeOfDay
-    safeConvert y@(SqlUTCTime _) = safeConvert y >>= return . localTimeOfDay
-    safeConvert y@(SqlDiffTime _) = quickError y
-    safeConvert y@(SqlPOSIXTime _) = safeConvert y >>= return . localTimeOfDay
-    safeConvert y@(SqlEpochTime _) = safeConvert y >>= return . localTimeOfDay
-    safeConvert y@(SqlTimeDiff _) = quickError y
-    safeConvert y@SqlNull = quickError y
-
-instance Convertible (TimeOfDay, TimeZone) SqlValue where
-    safeConvert (tod, tz) = return (SqlZonedLocalTimeOfDay tod tz)
-instance Convertible SqlValue (TimeOfDay, TimeZone) where
-    safeConvert (SqlString x) = 
-        do tod <- parseTime' "%T%Q %z" x
-           tz <- case parseTime defaultTimeLocale "%T%Q %z" x of
-                      Nothing -> convError "Couldn't extract timezone in" (SqlString x)
-                      Just y -> Right y
-           return (tod, tz)
-    safeConvert (SqlByteString x) = safeConvert (SqlString (BUTF8.toString x))
-    safeConvert y@(SqlInt32 _) = quickError y
-    safeConvert y@(SqlInt64 _) = quickError y
-    safeConvert y@(SqlWord32 _) = quickError y
-    safeConvert y@(SqlWord64 _) = quickError y
-    safeConvert y@(SqlInteger _) = quickError y
-    safeConvert y@(SqlChar _) = quickError y
-    safeConvert y@(SqlBool _) = quickError y
-    safeConvert y@(SqlDouble _) = quickError y
-    safeConvert y@(SqlRational _) = quickError y
-    safeConvert y@(SqlLocalDate _) = quickError y
-    safeConvert y@(SqlLocalTimeOfDay _) = quickError y
-    safeConvert (SqlZonedLocalTimeOfDay x y) = return (x, y)
-    safeConvert y@(SqlLocalTime _) = quickError y
-    safeConvert (SqlZonedTime x) = return (localTimeOfDay . zonedTimeToLocalTime $ x,
-                                           zonedTimeZone x)
-    safeConvert y@(SqlUTCTime _) = quickError y
-    safeConvert y@(SqlDiffTime _) = quickError y
-    safeConvert y@(SqlPOSIXTime _) = quickError y
-    safeConvert y@(SqlEpochTime _) = quickError y
-    safeConvert y@(SqlTimeDiff _) = quickError y
-    safeConvert y@SqlNull = quickError y
+  safeConvert x@(SqlDecimal _)                         = quickError x -- converting number to time has no sense
+  safeConvert x@(SqlWord32 _)                          = quickError x
+  safeConvert x@(SqlWord64 _)                          = quickError x
+  safeConvert x@(SqlInt32 _)                           = quickError x
+  safeConvert x@(SqlInt64 _)                           = quickError x
+  safeConvert x@(SqlInteger _)                         = quickError x
+  safeConvert x@(SqlDouble _)                          = quickError x
+  safeConvert (SqlString x)                            = parseTime' "%T%Q" x
+  safeConvert (SqlByteString x)                        = safeConvert (SqlString (BUTF8.toString x))
+  safeConvert x@(SqlBool _)                            = quickError x
+  safeConvert x@(SqlBitField _)                        = quickError x
+  safeConvert x@(SqlUUID _)                            = quickError x
+  safeConvert x@(SqlUTCTime _)                         = quickError x -- converting UTC time to TimeOfDay has no sense, you must convert it to LocalTime explicitly giving TimeZone
+  safeConvert x@(SqlLocalDate _)                       = quickError x
+  safeConvert (SqlLocalTimeOfDay a)                    = return a
+  safeConvert (SqlLocalTime (LocalTime {localTimeOfDay = a})) = return a
+  safeConvert x@SqlNow                                 = quickError x
+  safeConvert y@(SqlNull)                              = quickError y
 
 instance Convertible LocalTime SqlValue where
     safeConvert = return . SqlLocalTime
 instance Convertible SqlValue LocalTime where
-    safeConvert (SqlString x) = parseTime' (iso8601DateFormat (Just "%T%Q")) x
-    safeConvert (SqlByteString x) = safeConvert (SqlString (BUTF8.toString x))
-    safeConvert y@(SqlInt32 _) = quickError y
-    safeConvert y@(SqlInt64 _) = quickError y
-    safeConvert y@(SqlWord32 _) = quickError y
-    safeConvert y@(SqlWord64 _) = quickError y
-    safeConvert y@(SqlInteger _) = quickError y
-    safeConvert y@(SqlChar _) = quickError y
-    safeConvert y@(SqlBool _) = quickError y
-    safeConvert y@(SqlDouble _) = quickError y
-    safeConvert y@(SqlRational _) = quickError y
-    safeConvert y@(SqlLocalDate _) = quickError y
-    safeConvert y@(SqlLocalTimeOfDay _) = quickError y
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert (SqlLocalTime x) = return x
-    safeConvert (SqlZonedTime x) = return . zonedTimeToLocalTime $ x
-    safeConvert y@(SqlUTCTime _) = safeConvert y >>= return . zonedTimeToLocalTime
-    safeConvert y@(SqlDiffTime _) = quickError y
-    safeConvert y@(SqlPOSIXTime _) = safeConvert y >>= return . zonedTimeToLocalTime
-    safeConvert y@(SqlEpochTime _) = safeConvert y >>= return . zonedTimeToLocalTime
-    safeConvert y@(SqlTimeDiff _) = quickError y
-    safeConvert y@SqlNull = quickError y
-
-instance Convertible ZonedTime SqlValue where
-    safeConvert = return . SqlZonedTime
-instance Convertible SqlValue ZonedTime where
-    safeConvert (SqlString x) = parseTime' (iso8601DateFormat (Just "%T%Q %z")) x
-    safeConvert (SqlByteString x) = safeConvert (SqlString (BUTF8.toString x))
-    safeConvert (SqlInt32 x) = safeConvert (SqlInteger (fromIntegral x))
-    safeConvert (SqlInt64 x) = safeConvert (SqlInteger (fromIntegral x))
-    safeConvert (SqlWord32 x) = safeConvert (SqlInteger (fromIntegral x))
-    safeConvert (SqlWord64 x) = safeConvert (SqlInteger (fromIntegral x))
-    safeConvert y@(SqlInteger _) = safeConvert y >>= return . utcToZonedTime utc
-    safeConvert y@(SqlChar _) = quickError y
-    safeConvert y@(SqlBool _) = quickError y
-    safeConvert y@(SqlDouble _) = safeConvert y >>= return . utcToZonedTime utc
-    safeConvert y@(SqlRational _) = safeConvert y >>= return . utcToZonedTime utc
-    safeConvert y@(SqlLocalDate _) = quickError y
-    safeConvert y@(SqlLocalTime _) = quickError y
-    safeConvert y@(SqlLocalTimeOfDay _) = quickError y
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert (SqlZonedTime x) = return x
-    safeConvert (SqlUTCTime x) = return . utcToZonedTime utc $ x
-    safeConvert y@(SqlDiffTime _) = quickError y
-    safeConvert y@(SqlPOSIXTime _) = safeConvert y >>= return . utcToZonedTime utc
-    safeConvert y@(SqlEpochTime _) = safeConvert y >>= return . utcToZonedTime utc
-    safeConvert y@(SqlTimeDiff _) = quickError y
-    safeConvert y@SqlNull = quickError y
+  safeConvert x@(SqlDecimal _)        = quickError x -- converting number to time of day has no sense
+  safeConvert x@(SqlWord32 _)         = quickError x
+  safeConvert x@(SqlWord64 _)         = quickError x
+  safeConvert x@(SqlInt32 _)          = quickError x
+  safeConvert x@(SqlInt64 _)          = quickError x
+  safeConvert x@(SqlInteger _)        = quickError x
+  safeConvert x@(SqlDouble _)         = quickError x
+  safeConvert (SqlString x)           = parseTime' (iso8601DateFormat (Just "%T%Q")) x
+  safeConvert (SqlByteString x)       = safeConvert (SqlString (BUTF8.toString x))
+  safeConvert x@(SqlBool _)           = quickError x
+  safeConvert x@(SqlBitField _)       = quickError x
+  safeConvert x@(SqlUUID _)           = quickError x
+  safeConvert x@(SqlUTCTime _)        = quickError x -- converting UTC time to TimeOfDay has no sense, you must convert it to LocalTime explicitly giving TimeZone
+  safeConvert (SqlLocalDate d)        = return $ LocalTime d midnight
+  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
+  safeConvert (SqlLocalTime a)        = return a
+  safeConvert x@SqlNow                = quickError x
+  safeConvert y@SqlNull               = quickError y
 
 instance Convertible UTCTime SqlValue where
     safeConvert = return . SqlUTCTime
 instance Convertible SqlValue UTCTime where
-    safeConvert (SqlString x) = parseTime' (iso8601DateFormat (Just "%T%Q")) x
-    safeConvert (SqlByteString x) = safeConvert (SqlString (BUTF8.toString x))
-    safeConvert y@(SqlInt32 _) = safeConvert y >>= return . posixSecondsToUTCTime
-    safeConvert y@(SqlInt64 _) = safeConvert y >>= return . posixSecondsToUTCTime
-    safeConvert y@(SqlWord32 _) = safeConvert y >>= return . posixSecondsToUTCTime
-    safeConvert y@(SqlWord64 _) = safeConvert y >>= return . posixSecondsToUTCTime
-    safeConvert y@(SqlInteger _) = safeConvert y >>= return . posixSecondsToUTCTime
-    safeConvert y@(SqlChar _) = quickError y
-    safeConvert y@(SqlBool _) = quickError y
-    safeConvert y@(SqlDouble _) = safeConvert y >>= return . posixSecondsToUTCTime
-    safeConvert y@(SqlRational _) = safeConvert y >>= return . posixSecondsToUTCTime
-    safeConvert y@(SqlLocalDate _) = quickError y
-    safeConvert y@(SqlLocalTimeOfDay _) = quickError y
-    safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
-    safeConvert y@(SqlLocalTime _) = quickError y
-    safeConvert (SqlZonedTime x) = return . zonedTimeToUTC $ x
-    safeConvert (SqlUTCTime x) = return x
-    safeConvert y@(SqlDiffTime _) = convError "incompatible types (did you mean SqlPOSIXTime?)" y
-    safeConvert (SqlPOSIXTime x) = return . posixSecondsToUTCTime $ x
-    safeConvert y@(SqlEpochTime _) = safeConvert y >>= return . posixSecondsToUTCTime
-    safeConvert y@(SqlTimeDiff _) = convError "incompatible types (did you mean SqlPOSIXTime?)" y
-    safeConvert y@SqlNull = quickError y
+  safeConvert x@(SqlDecimal _)        = quickError x -- converting number to UTC has no sense
+  safeConvert x@(SqlWord32 _)         = quickError x
+  safeConvert x@(SqlWord64 _)         = quickError x
+  safeConvert x@(SqlInt32 _)          = quickError x
+  safeConvert x@(SqlInt64 _)          = quickError x
+  safeConvert x@(SqlInteger _)        = quickError x
+  safeConvert x@(SqlDouble _)         = quickError x
+  safeConvert (SqlString x)           = parseTime' (iso8601DateFormat (Just "%T%Q")) x
+  safeConvert (SqlByteString x)       = safeConvert (SqlString (BUTF8.toString x))
+  safeConvert x@(SqlBool _)           = quickError x
+  safeConvert x@(SqlBitField _)       = quickError x
+  safeConvert x@(SqlUUID _)           = quickError x
+  safeConvert (SqlUTCTime a)          = return a
+  safeConvert x@(SqlLocalDate _)      = quickError x
+  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
+  safeConvert x@(SqlLocalTime _)      = quickError x
+  safeConvert x@SqlNow                = quickError x
+  safeConvert y@SqlNull               = quickError y
 
 instance (HasResolution r) => Convertible (Fixed r) SqlValue where
   safeConvert = return . SqlString . (showFixed True)
@@ -835,18 +642,18 @@ instance (HasResolution r, Typeable r) => Convertible SqlValue (Fixed r) where
   safeConvert (SqlEpochTime x) = return . fromIntegral $ x
   safeConvert (SqlTimeDiff x) = return . fromIntegral $ x
   safeConvert y@(SqlNull) = quickError y
-  
+
 
 stringToFixed :: (HasResolution r) => String -> ConvertResult (Fixed r)
 stringToFixed s = fmap fromRational $ readRational s
-    
+
 stringToPico :: String -> ConvertResult Pico
 stringToPico = stringToFixed
 
 instance Convertible NominalDiffTime SqlValue where
     safeConvert = return . SqlDiffTime
 instance Convertible SqlValue NominalDiffTime where
-    safeConvert (SqlString x) = stringToPico x >>= 
+    safeConvert (SqlString x) = stringToPico x >>=
                                 return . realToFrac
     safeConvert (SqlByteString x) = (stringToPico (BUTF8.toString x)) >>=
                                     return . realToFrac
@@ -859,9 +666,9 @@ instance Convertible SqlValue NominalDiffTime where
     safeConvert y@(SqlBool _) = quickError y
     safeConvert (SqlDouble x) = return . fromRational . toRational $ x
     safeConvert (SqlRational x) = return . fromRational $ x
-    safeConvert (SqlLocalDate x) = return . fromIntegral . (\y -> y * 60 * 60 * 24) . 
+    safeConvert (SqlLocalDate x) = return . fromIntegral . (\y -> y * 60 * 60 * 24) .
                                toModifiedJulianDay $ x
-    safeConvert (SqlLocalTimeOfDay x) = 
+    safeConvert (SqlLocalTimeOfDay x) =
         return . fromRational . toRational . timeOfDayToTime $ x
     safeConvert y@(SqlZonedLocalTimeOfDay _ _) = quickError y
     safeConvert y@(SqlLocalTime _) = quickError y
@@ -903,7 +710,7 @@ instance Convertible SqlValue ST.ClockTime where
 instance Convertible ST.TimeDiff SqlValue where
     safeConvert x = safeConvert x >>= return . SqlDiffTime
 instance Convertible SqlValue ST.TimeDiff where
-    safeConvert y@(SqlString _) = 
+    safeConvert y@(SqlString _) =
         do r <- safeConvert y
            ret <- safeConvert (SqlDiffTime r)
            return $ ST.normalizeTimeDiff ret
@@ -971,7 +778,7 @@ instance (Convertible SqlValue a) => Convertible SqlValue (Maybe a) where
 
 viaInteger' :: (Convertible SqlValue a, Bounded a, Show a, Convertible a Integer,
                Typeable a) => SqlValue -> (Integer -> ConvertResult a) -> ConvertResult a
-viaInteger' sv func = 
+viaInteger' sv func =
     do i <- ((safeConvert sv)::ConvertResult Integer)
        boundedConversion func i
 
@@ -986,7 +793,7 @@ secs2td x = safeConvert x
 -- | Read a value from a string, and give an informative message
 --   if it fails.
 read' :: (Typeable a, Read a, Convertible SqlValue a) => String -> ConvertResult a
-read' s = 
+read' s =
     case reads s of
       [(x,"")] -> Right x
       _ -> convError "Cannot read source value as dest type" (SqlString s)
@@ -997,7 +804,7 @@ parseTime' _ inpstr =
     convError "Hugs does not support time parsing" (SqlString inpstr)
 #else
 parseTime' :: (Typeable t, Convertible SqlValue t, ParseTime t) => String -> String -> ConvertResult t
-parseTime' fmtstr inpstr = 
+parseTime' fmtstr inpstr =
     case parseTime defaultTimeLocale fmtstr inpstr of
       Nothing -> convError ("Cannot parse using default format string " ++ show fmtstr)
                  (SqlString inpstr)
