@@ -270,10 +270,10 @@ instance Convertible SqlValue String where
   safeConvert (SqlBool a)           = return $ show a
   safeConvert (SqlBitField a)       = return $ show a
   safeConvert (SqlUUID a)           = return $ show a
-  safeConvert (SqlUTCTime a)        = return $ show a
-  safeConvert (SqlLocalDate a)      = return $ show a
-  safeConvert (SqlLocalTimeOfDay a) = return $ show a
-  safeConvert (SqlLocalTime a)      = return $ show a
+  safeConvert (SqlUTCTime a)        = return . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q")) $ a
+  safeConvert (SqlLocalDate a)      = return . formatTime defaultTimeLocale (iso8601DateFormat Nothing) $ a
+  safeConvert (SqlLocalTimeOfDay a) = return . formatTime defaultTimeLocale "%T%Q" $ a
+  safeConvert (SqlLocalTime a)      = return . formatTime defaultTimeLocale (iso8601DateFormat (Just "%T%Q")) $ a
   safeConvert x@SqlNow  = quickError x
   safeConvert x@SqlNull = quickError x
 
@@ -494,6 +494,29 @@ instance Convertible SqlValue Double where
   safeConvert x@SqlNow                = quickError x
   safeConvert y@(SqlNull)             = quickError y
 
+instance Convertible Decimal SqlValue where
+  safeConvert = return . SqlDecimal
+instance Convertible SqlValue Decimal where
+  safeConvert (SqlDecimal a)          = return a
+  safeConvert (SqlWord32 a)           = safeConvert a
+  safeConvert (SqlWord64 a)           = safeConvert a
+  safeConvert (SqlInt32 a)            = safeConvert a
+  safeConvert (SqlInt64 a)            = safeConvert a
+  safeConvert (SqlInteger a)          = safeConvert a
+  safeConvert (SqlDouble a)           = safeConvert a
+  safeConvert (SqlString a)           = read' a
+  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlBool a)             = return $ if a then 1 else 0
+  safeConvert (SqlBitField a)         = safeConvert a
+  safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to Double has no sense
+  safeConvert x@(SqlUTCTime _)        = quickError x
+  safeConvert x@(SqlLocalDate _)      = quickError x
+  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
+  safeConvert x@(SqlLocalTime _)      = quickError x
+  safeConvert x@SqlNow                = quickError x
+  safeConvert y@(SqlNull)             = quickError y
+  
+
 readMay :: Read a => String -> Maybe a
 readMay s = case reads s of
   [(a, "")] -> Just a
@@ -643,8 +666,8 @@ secs2td x = safeConvert x
 --   if it fails.
 read' :: (Typeable a, Read a, Convertible SqlValue a) => String -> ConvertResult a
 read' s =
-    case reads s of
-      [(x,"")] -> Right x
+    case [x | (x, "") <- reads s] of
+      [x] -> Right x
       _ -> convError "Cannot read source value as dest type" (SqlString s)
 
 #ifdef __HUGS__

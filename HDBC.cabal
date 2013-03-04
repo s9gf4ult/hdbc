@@ -62,3 +62,4 @@ Test-Suite sqlvalues
                   , time
                   , convertible
                   , old-time
+                  , Decimal
