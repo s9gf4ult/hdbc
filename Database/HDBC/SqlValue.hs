@@ -3,7 +3,7 @@ module Database.HDBC.SqlValue
      -- * SQL value marshalling
      SqlValue(..),
      safeFromSql, toSql, fromSql,
-     nToSql, iToSql, posixToSql
+     nToSql, iToSql
     )
 
 where
@@ -408,7 +408,7 @@ instance Convertible SqlValue Word64 where
   safeConvert (SqlString a)           = read' a
   safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
   safeConvert (SqlBool a)             = return $ if a then 1 else 0
-  safeConvert (SqlBitField a)         = safeConvert a
+  safeConvert (SqlBitField a)         = return a
   safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
   safeConvert x@(SqlUTCTime _)        = quickError x
   safeConvert x@(SqlLocalDate _)      = quickError x
@@ -515,7 +515,7 @@ readRational s = case reads s of
       x -> x
     lowdecs = length $ dropWhile (== '0') $ reverse low -- drop tail zeros
 
-#ifndef TIME_GT_113
+#if ! (MIN_VERSION_time(1,1,3))
 instance Typeable Day where
     typeOf _ = mkTypeName "Day"
 instance Typeable TimeOfDay where
@@ -611,30 +611,6 @@ instance Convertible SqlValue UTCTime where
   safeConvert x@(SqlLocalTime _)      = quickError x
   safeConvert x@SqlNow                = quickError x
   safeConvert y@SqlNull               = quickError y
-
-instance (HasResolution r) => Convertible (Fixed r) SqlValue where
-  safeConvert a = fmap SqlDecimal $ safeConvert a
-
-instance (HasResolution r, Typeable r) => Convertible SqlValue (Fixed r) where
-  safeConvert (SqlDecimal a)          = safeConvert a
-  safeConvert (SqlWord32 a)           = safeConvert a
-  safeConvert (SqlWord64 a)           = safeConvert a
-  safeConvert (SqlInt32 a)            = safeConvert a
-  safeConvert (SqlInt64 a)            = safeConvert a
-  safeConvert (SqlInteger a)          = safeConvert a
-  safeConvert (SqlDouble a)           = safeConvert a
-  safeConvert (SqlString a)           = read' a
-  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
-  safeConvert (SqlBool a)             = return $ if a then 1 else 0
-  safeConvert (SqlBitField a)         = safeConvert a
-  safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to Double has no sense
-  safeConvert x@(SqlUTCTime _)        = quickError x
-  safeConvert x@(SqlLocalDate _)      = quickError x
-  safeConvert x@(SqlLocalTimeOfDay _) = quickError x
-  safeConvert x@(SqlLocalTime _)      = quickError x
-  safeConvert x@SqlNow                = quickError x
-  safeConvert y@(SqlNull)             = quickError y
-
 
 stringToFixed :: (HasResolution r) => String -> ConvertResult (Fixed r)
 stringToFixed s = fmap fromRational $ readRational s
