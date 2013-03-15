@@ -1,3 +1,6 @@
+{-# LANGUAGE
+    DeriveDataTypeable #-}
+
 module Database.HDBC.SqlValue
     (
      -- * SQL value marshalling
@@ -11,18 +14,14 @@ import Data.Dynamic
 import qualified Data.ByteString.UTF8 as BUTF8
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BSL
-import Data.Char(ord,toUpper)
+import Data.Char(toUpper)
 import Data.Word
 import Data.Int
 import Data.Decimal
 import Data.UUID
-import qualified System.Time as ST
 import Data.Time
-import Data.Time.Clock.POSIX
 import Database.HDBC.Locale (defaultTimeLocale, iso8601DateFormat)
-import Data.Ratio
 import Data.Convertible
-import Data.Fixed
 import qualified Data.Text as TS
 import qualified Data.Text.Lazy as TL
 
@@ -213,10 +212,7 @@ data SqlValue =
     -}
   | SqlNow
   | SqlNull         -- ^ NULL in SQL or Nothing in Haskell
-  deriving (Show)
-
-instance Typeable SqlValue where
-    typeOf _ = mkTypeName "SqlValue"
+  deriving (Show, Typeable)
 
 instance Eq SqlValue where
 
@@ -517,26 +513,6 @@ instance Convertible SqlValue Decimal where
   safeConvert y@(SqlNull)             = quickError y
   
 
-readMay :: Read a => String -> Maybe a
-readMay s = case reads s of
-  [(a, "")] -> Just a
-  _         -> Nothing
-
-readRational :: String -> ConvertResult Rational -- more smart reader for Rationals
-readRational s = case reads s of
-  [(a, "")] -> return a
-  _ -> case decread of
-    Just a -> return a
-    Nothing -> convError "Could not read as Rational: " s
-  where
-    decread = do
-      h <- readMay $ high ++ low
-      return $ h % (10^lowdecs)
-    (high, loW) = span (/= '.') s
-    low = case drop 1 loW of
-      "" -> "0"
-      x -> x
-    lowdecs = length $ dropWhile (== '0') $ reverse low -- drop tail zeros
 
 #if ! (MIN_VERSION_time(1,1,3))
 instance Typeable Day where
@@ -635,32 +611,12 @@ instance Convertible SqlValue UTCTime where
   safeConvert x@SqlNow                = quickError x
   safeConvert y@SqlNull               = quickError y
 
-stringToFixed :: (HasResolution r) => String -> ConvertResult (Fixed r)
-stringToFixed s = fmap fromRational $ readRational s
-
-stringToPico :: String -> ConvertResult Pico
-stringToPico = stringToFixed
-
 instance (Convertible a SqlValue) => Convertible (Maybe a) SqlValue where
     safeConvert Nothing = return SqlNull
     safeConvert (Just a) = safeConvert a
 instance (Convertible SqlValue a) => Convertible SqlValue (Maybe a) where
     safeConvert SqlNull = return Nothing
     safeConvert a = safeConvert a >>= (return . Just)
-
-viaInteger' :: (Convertible SqlValue a, Bounded a, Show a, Convertible a Integer,
-               Typeable a) => SqlValue -> (Integer -> ConvertResult a) -> ConvertResult a
-viaInteger' sv func =
-    do i <- ((safeConvert sv)::ConvertResult Integer)
-       boundedConversion func i
-
-viaInteger :: (Convertible SqlValue a, Bounded a, Show a, Convertible a Integer,
-               Typeable a) => SqlValue -> (Integer -> a) -> ConvertResult a
-viaInteger sv func = viaInteger' sv (return . func)
-
-secs2td :: Integer -> ConvertResult ST.TimeDiff
-secs2td x = safeConvert x
-
 
 -- | Read a value from a string, and give an informative message
 --   if it fails.

@@ -1,3 +1,6 @@
+{-# LANGUAGE
+    DeriveDataTypeable #-}
+
 module Database.HDBC.Statement
     (
     Statement(..),
@@ -10,7 +13,6 @@ module Database.HDBC.Statement
 
 where
 import Data.Dynamic
-import Database.HDBC.ColTypes
 import Database.HDBC.SqlValue
 import Control.Exception
 
@@ -82,21 +84,7 @@ data Statement = Statement
 
      {- | The original query that this 'Statement' was prepared
           with. -}
-     originalQuery :: String,
-     {- | Obtain information about the columns in the result set.
-          Must be run only after 'execute'.  The String in the result
-          set is the column name.
-
-          You should expect this to be returned in the same manner
-          as a result from 'Database.HDBC.fetchAllRows''.
-
-          All results should be converted to lowercase for you
-          before you see them.
-
-          Please see caveats under 'getColumnNames' for information
-          on the column name field here.
- -}
-     describeResult :: IO [(String, SqlColDesc)]
+     originalQuery :: String
     }
 
 {- | The main HDBC exception object.  As much information as possible
@@ -107,13 +95,10 @@ Errors generated in the Haskell layer will have seNativeError set to -1.
 data SqlError = SqlError {seState :: String,
                           seNativeError :: Int,
                           seErrorMsg :: String}
-                deriving (Eq, Show, Read)
+                deriving (Eq, Show, Read, Typeable)
 
 sqlErrorTc :: TyCon
 sqlErrorTc = mkTyCon "Database.HDBC.SqlError"
-
-instance Typeable SqlError where
-    typeOf _ = mkTyConApp sqlErrorTc []
 
 #if __GLASGOW_HASKELL__ >= 610
 --data SqlException

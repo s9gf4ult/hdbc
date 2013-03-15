@@ -16,7 +16,7 @@ exclusively.
 Written by John Goerzen, jgoerzen\@complete.org
 -}
 
-module Database.HDBC.Types
+module Database.HDBC.Connection
     (IConnection(..),
     Statement(..),
     SqlError(..),
@@ -28,8 +28,6 @@ module Database.HDBC.Types
 
 where
 import Database.HDBC.Statement
-import Database.HDBC.ColTypes
-import Control.Exception ( finally )
 
 {- | Main database handle object.
 
@@ -66,6 +64,8 @@ and vary by database.  So don't do it.
 
 -}
                 disconnect :: conn -> IO ()
+                {- | Explicitly start new transaction -}
+                start :: conn -> IO ()
                 {- | Commit any pending data to the database.
 
                    Required to make any changes take effect. -}
@@ -77,25 +77,6 @@ and vary by database.  So don't do it.
                    queries. This is intended for situations where you
                    need to run DML or DDL queries and aren't
                    interested in results. -}
-                runRaw :: conn -> String -> IO ()
-                runRaw conn sql = do
-                  sth <- prepare conn sql
-                  _ <- execute sth [] `finally` finish sth
-                  return ()
-                {- | Execute a single SQL query.  Returns the number
-                   of rows modified (see 'execute' for details).
-                   The second parameter is a list
-                   of replacement values, if any. -}
-                run :: conn -> String -> [SqlValue] -> IO Integer
-                {- | Prepares a statement for execution. 
-
-                   Question marks in the statement will be replaced by
-                   positional parameters in a later call to 'execute'.
-
-                   Please note that, depending on the database
-                   and the driver, errors in your SQL may be raised
-                   either here or by 'execute'.  Make sure you
-                   handle exceptions both places if necessary. -}
                 prepare :: conn -> String -> IO Statement
                 {- | Create a new 'Connection' object, pointed at the same
                    server as this object is.  This will generally establish
@@ -149,28 +130,6 @@ and vary by database.  So don't do it.
                    the MySQL notes in the ODBC driver for more information. -}
                 dbTransactionSupport :: conn -> Bool
 
-                {- | The names of all tables accessible by the current
-                   connection, excluding special meta-tables (system tables).
-                   
-                   You should expect this to be returned in the same manner
-                   as a result from 'Database.HDBC.fetchAllRows''.
-
-                   All results should be converted to lowercase for you
-                   before you see them.
-                     -}
-                getTables :: conn -> IO [String]
-
-                {- | Obtain information about the columns in a specific
-                   table.  The String in the result
-                   set is the column name.
-
-                   You should expect this to be returned in the same manner
-                   as a result from 'Database.HDBC.fetchAllRows''.
-
-                   All results should be converted to lowercase for you
-                   before you see them.
-                   -}
-                describeTable :: conn -> String -> IO [(String, SqlColDesc)]
 
 {- | Sometimes, it is annoying to use typeclasses with Haskell's type system.
 In those situations, you can use a ConnWrapper.  You can create one with:
@@ -197,10 +156,9 @@ withWConn conn f =
 
 instance IConnection ConnWrapper where
     disconnect w = withWConn w disconnect
+    start w = withWConn w start
     commit w = withWConn w commit
     rollback w = withWConn w rollback
-    runRaw w = withWConn w runRaw
-    run w = withWConn w run
     prepare w = withWConn w prepare
     clone w = withWConn w (\dbh -> clone dbh >>= return . ConnWrapper)
     hdbcDriverName w = withWConn w hdbcDriverName
@@ -209,6 +167,4 @@ instance IConnection ConnWrapper where
     proxiedClientVer w = withWConn w proxiedClientVer
     dbServerVer w = withWConn w dbServerVer
     dbTransactionSupport w = withWConn w dbTransactionSupport
-    getTables w = withWConn w getTables
-    describeTable w = withWConn w describeTable
 

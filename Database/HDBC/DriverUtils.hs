@@ -25,8 +25,8 @@ module Database.HDBC.DriverUtils (
 where
 import Control.Concurrent.MVar
 import System.Mem.Weak
-import Database.HDBC.Types
 import Control.Monad
+import Database.HDBC.Statement
 
 type ChildList = MVar [Weak Statement]
 
