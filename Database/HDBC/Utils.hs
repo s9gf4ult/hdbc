@@ -17,15 +17,85 @@ Everything in here is expoerted by "Database.HDBC".  Please use -- and read --
 Written by John Goerzen, jgoerzen\@complete.org
 -}
 
-module Database.HDBC.Utils where
+module Database.HDBC.Utils
+       (
+         -- * Exception handling
+         catchSql
+       , handlSql
+       , sqlExceptions
+       , handleSqlError
+         -- * Convertible helpers
+       , toSql
+       , safeFromSql
+       , fromSql
+       , nToSql
+       , iToSql
+         -- * Connection wrapper helper
+       , ConnWrapper(..)
+       , withWConn
+         -- * Transaction handling
+       , withTransaction
+         -- * Query execution helpers
+       , withStatement
+       , run
+       , runRaw
+       , runMany
+       ) where
+         
 import Database.HDBC.Connection
-import qualified Data.Map as Map
-import Control.Exception
-import System.IO.Unsafe
-import Data.List(genericLength)
+import Database.HDBC.Statement
+import Database.HDBC.SqlValue
+import Control.Exception (bracket)
+import Control.Monad ((>=>))
 
--- import Data.Dynamic below for GHC < 6.10
+#if __GLASGOW_HASKELL__ >= 610
+{- | Execute the given IO action.
 
+If it raises a 'SqlError', then execute the supplied handler and return its
+return value.  Otherwise, proceed as normal. -}
+catchSql :: IO a -> (SqlError -> IO a) -> IO a
+catchSql action handler = 
+    catchJust sqlExceptions action handler
+
+{- | Like 'catchSql', with the order of arguments reversed. -}
+handleSql :: (SqlError -> IO a) -> IO a -> IO a
+handleSql h f = catchSql f h
+
+{- | Given an Exception, return Just SqlError if it was an SqlError, or Nothing
+otherwise. Useful with functions like catchJust. -}
+sqlExceptions :: SqlError -> Maybe SqlError
+sqlExceptions e = Just e
+
+#else
+import Data.Dynamic
+
+{- | Execute the given IO action.
+
+If it raises a 'SqlError', then execute the supplied handler and return its
+return value.  Otherwise, proceed as normal. -}
+catchSql :: IO a -> (SqlError -> IO a) -> IO a
+catchSql = catchDyn
+
+{- | Like 'catchSql', with the order of arguments reversed. -}
+handleSql :: (SqlError -> IO a) -> IO a -> IO a
+handleSql h f = catchDyn f h
+
+{- | Given an Exception, return Just SqlError if it was an SqlError, or Nothing
+otherwise. Useful with functions like catchJust. -}
+sqlExceptions :: Exception -> Maybe SqlError
+sqlExceptions e = dynExceptions e >>= fromDynamic
+#endif
+
+{- | Catches 'SqlError's, and re-raises them as IO errors with fail.
+Useful if you don't care to catch SQL errors, but want to see a sane
+error message if one happens.  One would often use this as a high-level
+wrapper around SQL calls. -}
+handleSqlError :: IO a -> IO a
+handleSqlError action =
+    catchSql action handler
+    where handler e = fail ("SQL error: " ++ show e)
+
+  
 {- | Convert a value to an 'SqlValue'.  This function is simply
 a restricted-type wrapper around 'convert'.  See extended notes on 'SqlValue'. -}
 toSql :: Convertible a SqlValue => a -> SqlValue
@@ -83,61 +153,16 @@ instance IConnection ConnWrapper where
     commit w = withWConn w commit
     rollback w = withWConn w rollback
     prepare w = withWConn w prepare
-    clone w = withWConn w (\dbh -> clone dbh >>= return . ConnWrapper)
+    clone w = withWConn w (clone >=> return . ConnWrapper)
     hdbcDriverName w = withWConn w hdbcDriverName
     hdbcClientVer w = withWConn w hdbcClientVer
     proxiedClientName w = withWConn w proxiedClientName
     proxiedClientVer w = withWConn w proxiedClientVer
     dbServerVer w = withWConn w dbServerVer
     dbTransactionSupport w = withWConn w dbTransactionSupport
+
+
   
-
-#if __GLASGOW_HASKELL__ >= 610
-{- | Execute the given IO action.
-
-If it raises a 'SqlError', then execute the supplied handler and return its
-return value.  Otherwise, proceed as normal. -}
-catchSql :: IO a -> (SqlError -> IO a) -> IO a
-catchSql action handler = 
-    catchJust sqlExceptions action handler
-
-{- | Like 'catchSql', with the order of arguments reversed. -}
-handleSql :: (SqlError -> IO a) -> IO a -> IO a
-handleSql h f = catchSql f h
-
-{- | Given an Exception, return Just SqlError if it was an SqlError, or Nothing
-otherwise. Useful with functions like catchJust. -}
-sqlExceptions :: SqlError -> Maybe SqlError
-sqlExceptions e = Just e
-
-#else
-import Data.Dynamic
-
-{- | Execute the given IO action.
-
-If it raises a 'SqlError', then execute the supplied handler and return its
-return value.  Otherwise, proceed as normal. -}
-catchSql :: IO a -> (SqlError -> IO a) -> IO a
-catchSql = catchDyn
-
-{- | Like 'catchSql', with the order of arguments reversed. -}
-handleSql :: (SqlError -> IO a) -> IO a -> IO a
-handleSql h f = catchDyn f h
-
-{- | Given an Exception, return Just SqlError if it was an SqlError, or Nothing
-otherwise. Useful with functions like catchJust. -}
-sqlExceptions :: Exception -> Maybe SqlError
-sqlExceptions e = dynExceptions e >>= fromDynamic
-#endif
-
-{- | Catches 'SqlError's, and re-raises them as IO errors with fail.
-Useful if you don't care to catch SQL errors, but want to see a sane
-error message if one happens.  One would often use this as a high-level
-wrapper around SQL calls. -}
-handleSqlError :: IO a -> IO a
-handleSqlError action =
-    catchSql action handler
-    where handler e = fail ("SQL error: " ++ show e)
 
 
 {- | Execute some code.  If any uncaught exception occurs, run
@@ -185,3 +210,32 @@ withTransaction conn func =
              do try (rollback conn) -- Discard any exception here
                 throw e
 #endif
+
+{-| Create statement and execute monadic action using 
+it. Safely finalize Statement after action is done.
+
+-}
+withStatement :: (IConnection conn)
+                 => conn         -- ^ Connection
+                 -> String       -- ^ Query string
+                 -> (Statement -> IO a) -- ^ Action around statement
+                 -> IO a               -- ^ Result of action
+withStatement conn query = bracket (prepare conn query) finish
+
+{-| Run query and safely finalize statement after that
+-}
+run :: (IConnection conn) => conn -> String -> [SqlValue] -> IO Integer
+run conn query values = withStatement conn query $
+                        \s -> execute s values
+
+  
+{-| Run raw query without parameters and safely finalize
+statement
+-}
+runRaw :: (IConnection conn) => conn -> String -> IO ()
+runRaw conn query = withStatement conn query executeRaw
+  
+{-| run executeMany and safely finalize statement -}
+runMany :: (IConnection conn) => conn -> String -> [[SqlValue]] -> IO Integer
+runMany conn query values = withStatement conn query $
+                            \s -> executeMany s values

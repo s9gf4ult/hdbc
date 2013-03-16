@@ -17,16 +17,10 @@ Written by John Goerzen, jgoerzen\@complete.org
 -}
 
 module Database.HDBC.Connection
-    (IConnection(..),
-    Statement(..),
-    SqlError(..),
-    nToSql, iToSql, fromSql, safeFromSql, toSql,
-    SqlValue(..),
-    ConnWrapper(..),
-    withWConn
-    )
+       (
+         IConnection(..)
+       ) where
 
-where
 import Database.HDBC.Statement
 
 {- | Main database handle object.

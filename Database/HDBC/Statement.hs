@@ -2,19 +2,11 @@
     DeriveDataTypeable #-}
 
 module Database.HDBC.Statement
-    (
-    Statement(..),
-    SqlError(..),
-
-    -- * Re-exported from "Database.HDBC.SqlValue"; this re-exporting is deprecated
-    nToSql, iToSql, fromSql, safeFromSql, toSql,
-    SqlValue(..)
-    )
-
-where
-import Data.Dynamic
+       (
+         Statement(..)
+       )  where
+  
 import Database.HDBC.SqlValue
-import Control.Exception
 
 data Statement = Statement
     {
@@ -87,25 +79,3 @@ data Statement = Statement
      originalQuery :: String
     }
 
-{- | The main HDBC exception object.  As much information as possible
-is passed from the database through to the application through this object.
-
-Errors generated in the Haskell layer will have seNativeError set to -1.
--}
-data SqlError = SqlError {seState :: String,
-                          seNativeError :: Int,
-                          seErrorMsg :: String}
-                deriving (Eq, Show, Read, Typeable)
-
-sqlErrorTc :: TyCon
-sqlErrorTc = mkTyCon "Database.HDBC.SqlError"
-
-#if __GLASGOW_HASKELL__ >= 610
---data SqlException
-instance Exception SqlError where
-{-
-    toException = SomeException
-    fromException (SomeException e) = Just e
-    fromException _ = Nothing
--}
-#endif
