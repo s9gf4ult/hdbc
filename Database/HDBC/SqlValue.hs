@@ -1,12 +1,15 @@
 {-# LANGUAGE
     DeriveDataTypeable #-}
 
+#if ! (MIN_VERSION_time(1,1,3))
+{-# LANGUAGE
+    StandaloneDeriving #-} 
+#endif
+
 module Database.HDBC.SqlValue
     (
      -- * SQL value marshalling
-     SqlValue(..),
-     safeFromSql, toSql, fromSql,
-     nToSql, iToSql
+     SqlValue(..)
     )
 
 where
@@ -20,7 +23,7 @@ import Data.Int
 import Data.Decimal
 import Data.UUID
 import Data.Time
-import Database.HDBC.Locale (defaultTimeLocale, iso8601DateFormat)
+import System.Locale (defaultTimeLocale)
 import Data.Convertible
 import qualified Data.Text as TS
 import qualified Data.Text.Lazy as TL
@@ -28,32 +31,6 @@ import qualified Data.Text.Lazy as TL
 quickError :: (Typeable a, Convertible SqlValue a) => SqlValue -> ConvertResult a
 quickError sv = convError "incompatible types" sv
 
-{- | Convert a value to an 'SqlValue'.  This function is simply
-a restricted-type wrapper around 'convert'.  See extended notes on 'SqlValue'. -}
-toSql :: Convertible a SqlValue => a -> SqlValue
-toSql = convert
-
-{- | Conversions to and from 'SqlValue's and standard Haskell types.
-
-This function converts from an 'SqlValue' to a Haskell value.  Many people will use the simpler
-   'fromSql' instead.  This function is simply a restricted-type wrapper around
-   'safeConvert'. -}
-safeFromSql :: Convertible SqlValue a => SqlValue -> ConvertResult a
-safeFromSql = safeConvert
-
-{- | Convert from an 'SqlValue' to a Haskell value.  Any problem is indicated by
-   calling 'error'.  This function is simply a restricted-type wrapper around
-   'convert'.  See extended notes on 'SqlValue'. -}
-fromSql :: Convertible SqlValue a => SqlValue -> a
-fromSql = convert
-
-{- | Converts any Integral type to a 'SqlValue' by using toInteger. -}
-nToSql :: Integral a => a -> SqlValue
-nToSql n = SqlInteger (toInteger n)
-
-{- | Convenience function for using numeric literals in your program. -}
-iToSql :: Int -> SqlValue
-iToSql = toSql
 
 
 {- | 'SqlValue' is he main type for expressing Haskell values to SQL databases.
@@ -511,16 +488,14 @@ instance Convertible SqlValue Decimal where
   safeConvert x@(SqlLocalTime _)      = quickError x
   safeConvert x@SqlNow                = quickError x
   safeConvert y@(SqlNull)             = quickError y
-  
+
 
 
 #if ! (MIN_VERSION_time(1,1,3))
-instance Typeable Day where
-    typeOf _ = mkTypeName "Day"
-instance Typeable TimeOfDay where
-    typeOf _ = mkTypeName "TimeOfDay"
-instance Typeable LocalTime where
-    typeOf _ = mkTypeName "LocalTime"
+    -- older versions if time had no Typeable instances
+deriving instance Typeable Day
+deriving instance Typeable TimeOfDay
+deriving instance Typeable LocalTime
 #endif
 
 instance Convertible Day SqlValue where
@@ -638,3 +613,12 @@ parseTime' fmtstr inpstr =
                  (SqlString inpstr)
       Just x -> Right x
 #endif
+
+-- | As the semantic of System.Locale.iso8601DateFormat has changed with
+--   old-locale-1.0.0.2 in a non-compatible way, we now define our own
+--   (compatible) version of it.
+iso8601DateFormat :: Maybe String -> String
+iso8601DateFormat mTimeFmt =
+    "%Y-%m-%d" ++ case mTimeFmt of
+             Nothing  -> ""
+             Just fmt -> ' ' : fmt

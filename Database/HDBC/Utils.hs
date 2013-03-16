@@ -26,6 +26,72 @@ import Data.List(genericLength)
 
 -- import Data.Dynamic below for GHC < 6.10
 
+{- | Convert a value to an 'SqlValue'.  This function is simply
+a restricted-type wrapper around 'convert'.  See extended notes on 'SqlValue'. -}
+toSql :: Convertible a SqlValue => a -> SqlValue
+toSql = convert
+
+{- | Conversions to and from 'SqlValue's and standard Haskell types.
+
+This function converts from an 'SqlValue' to a Haskell value.  Many people will use the simpler
+   'fromSql' instead.  This function is simply a restricted-type wrapper around
+   'safeConvert'. -}
+safeFromSql :: Convertible SqlValue a => SqlValue -> ConvertResult a
+safeFromSql = safeConvert
+
+{- | Convert from an 'SqlValue' to a Haskell value.  Any problem is indicated by
+   calling 'error'.  This function is simply a restricted-type wrapper around
+   'convert'.  See extended notes on 'SqlValue'. -}
+fromSql :: Convertible SqlValue a => SqlValue -> a
+fromSql = convert
+
+{- | Converts any Integral type to a 'SqlValue' by using toInteger. -}
+nToSql :: Integral a => a -> SqlValue
+nToSql n = SqlInteger (toInteger n)
+
+{- | Convenience function for using numeric literals in your program. -}
+iToSql :: Int -> SqlValue
+iToSql = toSql
+
+
+{- | Sometimes, it is annoying to use typeclasses with Haskell's type system.
+In those situations, you can use a ConnWrapper.  You can create one with:
+
+>let wrapped = ConnWrapper iconn
+
+You can then use this directly, since a ConnWrapper is also an
+'IConnection'.  However, you will not be able to use private database
+functions on it.
+
+Or, you can use 'withWConn'.
+-}
+data ConnWrapper = forall conn. IConnection conn => ConnWrapper conn
+
+{- | Unwrap a 'ConnWrapper' and pass the embedded 'IConnection' to
+a function.  Example:
+
+>withWConn wrapped run $ "SELECT * from foo where bar = 1" []
+-}
+withWConn :: forall b. ConnWrapper -> (forall conn. IConnection conn => conn -> b) -> b
+withWConn conn f =
+    case conn of
+         ConnWrapper x -> f x
+
+instance IConnection ConnWrapper where
+    disconnect w = withWConn w disconnect
+    start w = withWConn w start
+    commit w = withWConn w commit
+    rollback w = withWConn w rollback
+    prepare w = withWConn w prepare
+    clone w = withWConn w (\dbh -> clone dbh >>= return . ConnWrapper)
+    hdbcDriverName w = withWConn w hdbcDriverName
+    hdbcClientVer w = withWConn w hdbcClientVer
+    proxiedClientName w = withWConn w proxiedClientName
+    proxiedClientVer w = withWConn w proxiedClientVer
+    dbServerVer w = withWConn w dbServerVer
+    dbTransactionSupport w = withWConn w dbTransactionSupport
+  
+
 #if __GLASGOW_HASKELL__ >= 610
 {- | Execute the given IO action.
 
