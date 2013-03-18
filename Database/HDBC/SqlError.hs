@@ -6,6 +6,9 @@ module Database.HDBC.SqlError
          SqlError(..)
        ) where
 
+
+import Control.Exception
+import Data.Typeable
 {- | The main HDBC exception object.  As much information as possible
 is passed from the database through to the application through this object.
 

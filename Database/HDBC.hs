@@ -78,6 +78,7 @@ import Database.HDBC.Connection
 import Database.HDBC.Statement
 import Database.HDBC.SqlValue
 import Database.HDBC.Utils
+import Database.HDBC.SqlError
 
 {- $introduction
 

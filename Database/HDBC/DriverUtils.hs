@@ -30,6 +30,10 @@ import Database.HDBC.Statement
 
 type ChildList = MVar [Weak Statement]
 
+
+newChildList :: IO ChildList
+newChildList = newMVar []
+
 {- | Close all children.  Intended to be called by the 'disconnect' function
 in 'Connection'. 
 
@@ -37,9 +41,9 @@ There may be a potential race condition wherein a call to newSth at the same
 time as a call to this function may result in the new child not being closed.
 -}
 closeAllChildren :: ChildList -> IO ()
-closeAllChildren mcl = 
-    do children <- readMVar mcl
-       mapM_ closefunc children
+closeAllChildren mcl = modifyMVar_ mcl $ \ls -> do
+  mapM_ closefunc ls
+  return ls
     where closefunc child =
               do c <- deRefWeak child
                  case c of
@@ -49,7 +53,7 @@ closeAllChildren mcl =
 {- | Adds a new child to the existing list.  Also takes care of registering
 a finalizer for it, to remove it from the list when possible. -}
 addChild :: ChildList -> Statement -> IO ()
-addChild mcl stmt =
+addChild mcl stmt = 
     do weakptr <- mkWeakPtr stmt (Just (childFinalizer mcl))
        modifyMVar_ mcl (\l -> return (weakptr : l))
 
@@ -60,15 +64,14 @@ It is simply a filter that removes any finalized weak pointers from the parent.
 If the MVar is locked at the start, does nothing to avoid deadlock.  Future
 runs would probably catch it anyway. -}
 childFinalizer :: ChildList -> IO ()
-childFinalizer mcl = 
-    do c <- tryTakeMVar mcl
-       case c of
-         Nothing -> return ()
-         Just cl ->
-             do newlist <- filterM filterfunc cl
-                putMVar mcl newlist
-    where filterfunc c =
-              do dc <- deRefWeak c
-                 case dc of
-                   Nothing -> return False
-                   Just _ -> return True
+childFinalizer mcl = do
+  c <- tryTakeMVar mcl
+  case c of
+    Nothing -> return ()
+    Just cl -> modifyMVar_ mcl (filterM filterfunc)
+    
+  where filterfunc c = do
+          dc <- deRefWeak c
+          case dc of
+            Nothing -> return False
+            Just _ -> return True

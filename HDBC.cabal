@@ -44,9 +44,9 @@ library
                  , Database.HDBC.DriverUtils
                  , Database.HDBC.Statement
                  , Database.HDBC.SqlValue
+                 , Database.HDBC.SqlError
+                 , Database.HDBC.Utils
                  
-  Other-Modules: Database.HDBC.Utils
-  
   Extensions:      ExistentialQuantification
                  , CPP
                  , MultiParamTypeClasses

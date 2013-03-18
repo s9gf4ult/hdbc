@@ -21,7 +21,7 @@ module Database.HDBC.Utils
        (
          -- * Exception handling
          catchSql
-       , handlSql
+       , handleSql
        , sqlExceptions
        , handleSqlError
          -- * Convertible helpers
@@ -41,12 +41,15 @@ module Database.HDBC.Utils
        , runRaw
        , runMany
        ) where
+import Prelude hiding (catch)
          
 import Database.HDBC.Connection
 import Database.HDBC.Statement
 import Database.HDBC.SqlValue
-import Control.Exception (bracket)
+import Database.HDBC.SqlError
+import Control.Exception (bracket, catchJust, onException, catch, SomeException(..))
 import Control.Monad ((>=>))
+import Data.Convertible
 
 #if __GLASGOW_HASKELL__ >= 610
 {- | Execute the given IO action.
@@ -198,7 +201,7 @@ withTransaction conn func =
     where doRollback = 
               -- Discard any exception from (rollback conn) so original
               -- exception can be re-raised
-              Control.Exception.catch (rollback conn) doRollbackHandler
+              catch (rollback conn) doRollbackHandler
           doRollbackHandler :: SomeException -> IO ()
           doRollbackHandler _ = return ()
 #else
@@ -236,6 +239,6 @@ runRaw :: (IConnection conn) => conn -> String -> IO ()
 runRaw conn query = withStatement conn query executeRaw
   
 {-| run executeMany and safely finalize statement -}
-runMany :: (IConnection conn) => conn -> String -> [[SqlValue]] -> IO Integer
+runMany :: (IConnection conn) => conn -> String -> [[SqlValue]] -> IO ()
 runMany conn query values = withStatement conn query $
                             \s -> executeMany s values
