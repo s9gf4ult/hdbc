@@ -5,6 +5,7 @@ module Database.HDBC.Statement
        )  where
   
 import Database.HDBC.SqlValue (SqlValue)
+import Database.HDBC.SqlError
 
 data Statement = Statement
     {
@@ -22,14 +23,14 @@ data Statement = Statement
         This function should automatically call finish() to finish the previous
         execution, if necessary.
         -}
-     execute :: [SqlValue] -> IO Integer,
+     execute :: [SqlValue] -> IO (SqlResult ()),
 
      {- | Execute the statement as-is, without supplying any
         positional parameters.  This is intended for statements for
         which the results aren't interesting or present (e.g., DDL or
         DML commands).  If your query contains placeholders, this will
         certainly fail; use 'execute' instead. -}
-     executeRaw :: IO (),
+     executeRaw :: IO (SqlResult ()),
 
      {- | Execute the query with many rows. 
         The return value is the return value from the final row 
@@ -41,15 +42,21 @@ data Statement = Statement
         need to be compiled only once.
 
         This is most useful for non-SELECT statements. -}
-     executeMany :: [[SqlValue]] -> IO (),
+     executeMany :: [[SqlValue]] -> IO (SqlResult ()),
+     {-| Return count of affected by query rows, return 0 if query was
+         SELECT
+
+      -}
+     affectedRows :: IO (SqlResult Integer),
+
                  
      {- | Abort a query in progress -- usually not needed. -}
-     finish :: IO (),
+     finish :: IO (SqlResult ()),
 
      {- | Fetches one row from the DB.  Returns 'Nothing' if there
         are no more rows.  Will automatically call 'finish' when
         the last row is read. -}
-     fetchRow :: IO (Maybe [SqlValue]),
+     fetchRow :: IO (SqlResult (Maybe [SqlValue])),
 
      {- | Returns a list of the column names in the result.
         For maximum portability, you should not assume that
@@ -69,7 +76,7 @@ data Statement = Statement
         A simple getColumnNames implementation could simply
         apply @map fst@ to the return value of 'describeResult'.
         -}
-     getColumnNames :: IO [String],
+     getColumnNames :: IO (SqlResult [String]),
 
 
      {- | The original query that this 'Statement' was prepared

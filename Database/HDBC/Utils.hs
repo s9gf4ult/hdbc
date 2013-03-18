@@ -24,6 +24,7 @@ module Database.HDBC.Utils
        , handleSql
        , sqlExceptions
        , handleSqlError
+       , throwSqlError
          -- * Convertible helpers
        , toSql
        , safeFromSql
@@ -97,6 +98,10 @@ handleSqlError :: IO a -> IO a
 handleSqlError action =
     catchSql action handler
     where handler e = fail ("SQL error: " ++ show e)
+
+throwSqlError :: SqlResult a -> a
+throwSqlError (Left e) = throw e
+throwSqlError (Right a) = a
 
   
 {- | Convert a value to an 'SqlValue'.  This function is simply
@@ -227,7 +232,7 @@ withStatement conn query = bracket (prepare conn query) finish
 
 {-| Run query and safely finalize statement after that
 -}
-run :: (IConnection conn) => conn -> String -> [SqlValue] -> IO Integer
+run :: (IConnection conn) => conn -> String -> [SqlValue] -> IO ()
 run conn query values = withStatement conn query $
                         \s -> execute s values
 

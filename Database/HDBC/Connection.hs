@@ -22,6 +22,7 @@ module Database.HDBC.Connection
        ) where
 
 import Database.HDBC.Statement (Statement)
+import Database.HDBC.SqlError
 
 {- | Main database handle object.
 
@@ -57,21 +58,21 @@ active.  In more precise language, the results in such situations are undefined
 and vary by database.  So don't do it.
 
 -}
-                disconnect :: conn -> IO ()
+                disconnect :: conn -> IO (SqlResult ())
                 {- | Explicitly start new transaction -}
-                start :: conn -> IO ()
+                start :: conn -> IO (SqlResult ())
                 {- | Commit any pending data to the database.
 
                    Required to make any changes take effect. -}
-                commit :: conn -> IO ()
+                commit :: conn -> IO (SqlResult ())
                 {- | Roll back to the state the database was in prior to the
                    last 'commit' or 'rollback'. -}
-                rollback :: conn -> IO ()
+                rollback :: conn -> IO (SqlResult ())
                 {- | Execute an SQL string, which may contain multiple
                    queries. This is intended for situations where you
                    need to run DML or DDL queries and aren't
                    interested in results. -}
-                prepare :: conn -> String -> IO Statement
+                prepare :: conn -> String -> IO (SqlResult Statement)
                 {- | Create a new 'Connection' object, pointed at the same
                    server as this object is.  This will generally establish
                    a separate physical connection.
@@ -88,7 +89,7 @@ and vary by database.  So don't do it.
                    This can also be a handy utility function whenever you
                    need a separate connection to whatever database you are
                    connected to already. -}
-                clone :: conn -> IO conn
+                clone :: conn -> IO (SqlResult conn)
 
 
                 {- | The name of the HDBC driver module for this connection.
@@ -123,3 +124,5 @@ and vary by database.  So don't do it.
                    to not support transactions entirely.  Please see
                    the MySQL notes in the ODBC driver for more information. -}
                 dbTransactionSupport :: conn -> Bool
+
+

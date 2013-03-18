@@ -17,10 +17,11 @@ Written by John Goerzen, jgoerzen\@complete.org
 -}
 
 module Database.HDBC.DriverUtils (
-                                  ChildList,
-                                  closeAllChildren,
-                                  addChild
-                                 )
+  ChildList
+  , closeAllChildren
+  , addChild
+  , newChildList
+  )
 
 where
 import Control.Concurrent.MVar
@@ -68,7 +69,7 @@ childFinalizer mcl = do
   c <- tryTakeMVar mcl
   case c of
     Nothing -> return ()
-    Just cl -> modifyMVar_ mcl (filterM filterfunc)
+    Just _ -> modifyMVar_ mcl (filterM filterfunc)
     
   where filterfunc c = do
           dc <- deRefWeak c

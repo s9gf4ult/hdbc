@@ -4,6 +4,7 @@
 module Database.HDBC.SqlError
        (
          SqlError(..)
+       , SqlResult
        ) where
 
 
@@ -29,3 +30,6 @@ instance Exception SqlError
     fromException _ = Nothing
 -}
 #endif
+
+
+type SqlResult a = Either SqlError a
