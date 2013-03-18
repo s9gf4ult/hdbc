@@ -6,7 +6,7 @@ module Database.HDBC.Statement
          Statement(..)
        )  where
   
-import Database.HDBC.SqlValue
+import Database.HDBC.SqlValue (SqlValue)
 
 data Statement = Statement
     {

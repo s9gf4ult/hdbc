@@ -44,7 +44,6 @@ library
                  , Database.HDBC.DriverUtils
                  , Database.HDBC.Statement
                  , Database.HDBC.SqlValue
-                 , Database.HDBC.Locale
                  
   Other-Modules: Database.HDBC.Utils
   

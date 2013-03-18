@@ -21,7 +21,7 @@ module Database.HDBC.Connection
          IConnection(..)
        ) where
 
-import Database.HDBC.Statement
+import Database.HDBC.Statement (Statement)
 
 {- | Main database handle object.
 

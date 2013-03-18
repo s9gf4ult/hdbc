@@ -220,8 +220,8 @@ instance Eq SqlValue where
       Right r -> r
       where
         convres = do
-          x <- ((safeFromSql a)::ConvertResult String)
-          y <- ((safeFromSql b)::ConvertResult String)
+          x <- ((safeConvert a)::ConvertResult String)
+          y <- ((safeConvert b)::ConvertResult String)
           return $ x == y
 
 instance Convertible SqlValue SqlValue where
