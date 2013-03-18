@@ -10,8 +10,7 @@ import Test.QuickCheck (Gen(..), Arbitrary(..))
 import Test.QuickCheck.Property
 import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Assertions
-import Database.HDBC.SqlValue (SqlValue)
-import Database.HDBC.Utils (toSql, fromSql)
+import Database.HDBC (SqlValue, toSql, fromSql)
 
 import Control.Applicative
 

@@ -1,5 +1,3 @@
-{-# LANGUAGE
-    DeriveDataTypeable #-}
 
 module Database.HDBC.Statement
        (

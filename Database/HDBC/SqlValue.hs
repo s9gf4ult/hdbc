@@ -220,8 +220,8 @@ instance Eq SqlValue where
       Right r -> r
       where
         convres = do
-          x <- ((safeConvert a)::ConvertResult String)
-          y <- ((safeConvert b)::ConvertResult String)
+          x <- (safeConvert a) :: ConvertResult String
+          y <- (safeConvert b) :: ConvertResult String
           return $ x == y
 
 instance Convertible SqlValue SqlValue where
@@ -271,7 +271,7 @@ instance Convertible B.ByteString SqlValue where
     safeConvert = return . SqlByteString
 instance Convertible SqlValue B.ByteString where
     safeConvert (SqlByteString x) = return x
-    safeConvert y@(SqlNull) = quickError y
+    safeConvert y@SqlNull = quickError y
     safeConvert x = safeConvert x >>= return . BUTF8.fromString
 
 instance Convertible BSL.ByteString SqlValue where
