@@ -58,21 +58,25 @@ active.  In more precise language, the results in such situations are undefined
 and vary by database.  So don't do it.
 
 -}
-                disconnect :: conn -> IO (SqlResult ())
+                disconnect :: conn -> SqlResult ()
                 {- | Explicitly start new transaction -}
-                start :: conn -> IO (SqlResult ())
+                start :: conn -> SqlResult ()
                 {- | Commit any pending data to the database.
 
                    Required to make any changes take effect. -}
-                commit :: conn -> IO (SqlResult ())
+                commit :: conn -> SqlResult ()
                 {- | Roll back to the state the database was in prior to the
                    last 'commit' or 'rollback'. -}
-                rollback :: conn -> IO (SqlResult ())
+                rollback :: conn -> SqlResult ()
+
+                {- | Return True if current connection is in transaction -}
+                inTransaction :: conn -> SqlResult Bool
+                
                 {- | Execute an SQL string, which may contain multiple
                    queries. This is intended for situations where you
                    need to run DML or DDL queries and aren't
                    interested in results. -}
-                prepare :: conn -> String -> IO (SqlResult Statement)
+                prepare :: conn -> String -> SqlResult Statement
                 {- | Create a new 'Connection' object, pointed at the same
                    server as this object is.  This will generally establish
                    a separate physical connection.
@@ -89,7 +93,7 @@ and vary by database.  So don't do it.
                    This can also be a handy utility function whenever you
                    need a separate connection to whatever database you are
                    connected to already. -}
-                clone :: conn -> IO (SqlResult conn)
+                clone :: conn -> SqlResult conn
 
 
                 {- | The name of the HDBC driver module for this connection.

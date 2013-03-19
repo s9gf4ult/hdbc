@@ -9,6 +9,7 @@ module Database.HDBC.SqlError
 
 
 import Control.Exception
+import Control.Monad.Trans.Either
 import Data.Typeable
 {- | The main HDBC exception object.  As much information as possible
 is passed from the database through to the application through this object.
@@ -32,4 +33,4 @@ instance Exception SqlError
 #endif
 
 
-type SqlResult a = Either SqlError a
+type SqlResult a = EitherT SqlError IO a

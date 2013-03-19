@@ -28,6 +28,7 @@ import Control.Concurrent.MVar
 import System.Mem.Weak
 import Control.Monad
 import Database.HDBC.Statement
+import Database.HDBC.Utils (throwSqlError)
 
 type ChildList = MVar [Weak Statement]
 
@@ -49,7 +50,7 @@ closeAllChildren mcl = modifyMVar_ mcl $ \ls -> do
               do c <- deRefWeak child
                  case c of
                    Nothing -> return ()
-                   Just x -> finish x
+                   Just x -> throwSqlError $ finish x
 
 {- | Adds a new child to the existing list.  Also takes care of registering
 a finalizer for it, to remove it from the list when possible. -}

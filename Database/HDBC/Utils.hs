@@ -43,12 +43,14 @@ module Database.HDBC.Utils
        , runMany
        ) where
 import Prelude hiding (catch)
-         
+
+import Control.Monad.Trans.Either (EitherT (..))
+  
 import Database.HDBC.Connection
 import Database.HDBC.Statement
 import Database.HDBC.SqlValue
 import Database.HDBC.SqlError
-import Control.Exception (bracket, catchJust, onException, catch, SomeException(..))
+import Control.Exception (bracket, catchJust, onException, catch, throw, SomeException(..))
 import Control.Monad ((>=>))
 import Data.Convertible
 
@@ -99,11 +101,13 @@ handleSqlError action =
     catchSql action handler
     where handler e = fail ("SQL error: " ++ show e)
 
-throwSqlError :: SqlResult a -> a
-throwSqlError (Left e) = throw e
-throwSqlError (Right a) = a
-
-  
+throwSqlError :: SqlResult a -> IO a
+throwSqlError m = do
+  res <- runEitherT m
+  case res of
+    Right a -> return a
+    Left  e -> throw e
+    
 {- | Convert a value to an 'SqlValue'.  This function is simply
 a restricted-type wrapper around 'convert'.  See extended notes on 'SqlValue'. -}
 toSql :: Convertible a SqlValue => a -> SqlValue
@@ -160,6 +164,7 @@ instance IConnection ConnWrapper where
     start w = withWConn w start
     commit w = withWConn w commit
     rollback w = withWConn w rollback
+    inTransaction w = withWConn w inTransaction
     prepare w = withWConn w prepare
     clone w = withWConn w (clone >=> return . ConnWrapper)
     hdbcDriverName w = withWConn w hdbcDriverName
@@ -201,12 +206,12 @@ withTransaction :: IConnection conn => conn -> (conn -> IO a) -> IO a
 withTransaction conn func =
 #if __GLASGOW_HASKELL__ >= 610
     do r <- onException (func conn) doRollback
-       commit conn
+       throwSqlError $ commit conn
        return r
     where doRollback = 
               -- Discard any exception from (rollback conn) so original
               -- exception can be re-raised
-              catch (rollback conn) doRollbackHandler
+              catch (throwSqlError $ rollback conn) doRollbackHandler
           doRollbackHandler :: SomeException -> IO ()
           doRollbackHandler _ = return ()
 #else
@@ -224,15 +229,24 @@ it. Safely finalize Statement after action is done.
 
 -}
 withStatement :: (IConnection conn)
-                 => conn         -- ^ Connection
-                 -> String       -- ^ Query string
-                 -> (Statement -> IO a) -- ^ Action around statement
-                 -> IO a               -- ^ Result of action
-withStatement conn query = bracket (prepare conn query) finish
+                 => conn                           -- ^ Connection
+                 -> String                         -- ^ Query string
+                 -> (Statement -> SqlResult a) -- ^ Action around statement
+                 -> SqlResult a               -- ^ Result of action
+withStatement conn query = sqlBracket
+                           (prepare conn query)
+                           finish
+
+sqlBracket :: (SqlResult a) -> (a -> SqlResult b) -> (a -> SqlResult c) -> SqlResult c
+sqlBracket aloc dealoc action = EitherT $ bracket ioAlloc ioDealloc ioAction
+  where
+    ioAlloc = runEitherT aloc
+    ioDealloc = \a -> runEitherT $ (EitherT . return $ a) >>= dealoc
+    ioAction = \a -> runEitherT $ (EitherT . return $ a) >>= action
 
 {-| Run query and safely finalize statement after that
 -}
-run :: (IConnection conn) => conn -> String -> [SqlValue] -> IO ()
+run :: (IConnection conn) => conn -> String -> [SqlValue] -> SqlResult ()
 run conn query values = withStatement conn query $
                         \s -> execute s values
 
@@ -240,10 +254,10 @@ run conn query values = withStatement conn query $
 {-| Run raw query without parameters and safely finalize
 statement
 -}
-runRaw :: (IConnection conn) => conn -> String -> IO ()
+runRaw :: (IConnection conn) => conn -> String -> SqlResult ()
 runRaw conn query = withStatement conn query executeRaw
   
 {-| run executeMany and safely finalize statement -}
-runMany :: (IConnection conn) => conn -> String -> [[SqlValue]] -> IO ()
+runMany :: (IConnection conn) => conn -> String -> [[SqlValue]] -> SqlResult ()
 runMany conn query values = withStatement conn query $
                             \s -> executeMany s values
