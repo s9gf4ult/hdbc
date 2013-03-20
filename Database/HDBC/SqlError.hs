@@ -22,15 +22,7 @@ data SqlError = SqlError {seState :: String,
                           seErrorMsg :: String}
               deriving (Eq, Show, Read, Typeable)
 
-#if __GLASGOW_HASKELL__ >= 610
---data SqlException
 instance Exception SqlError
-{-
-    toException = SomeException
-    fromException (SomeException e) = Just e
-    fromException _ = Nothing
--}
-#endif
 
 
 type SqlResult a = EitherT SqlError IO a

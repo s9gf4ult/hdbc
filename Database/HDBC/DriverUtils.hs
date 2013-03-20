@@ -30,10 +30,10 @@ import Control.Monad
 import Database.HDBC.Statement
 import Database.HDBC.Utils (throwSqlError)
 
-type ChildList = MVar [Weak Statement]
+type ChildList stmt = MVar [Weak stmt]
 
 
-newChildList :: IO ChildList
+newChildList :: IO (ChildList stmt)
 newChildList = newMVar []
 
 {- | Close all children.  Intended to be called by the 'disconnect' function
@@ -42,7 +42,7 @@ in 'Connection'.
 There may be a potential race condition wherein a call to newSth at the same
 time as a call to this function may result in the new child not being closed.
 -}
-closeAllChildren :: ChildList -> IO ()
+closeAllChildren :: (Statement stmt) => (ChildList stmt) -> IO ()
 closeAllChildren mcl = modifyMVar_ mcl $ \ls -> do
   mapM_ closefunc ls
   return ls
@@ -54,7 +54,7 @@ closeAllChildren mcl = modifyMVar_ mcl $ \ls -> do
 
 {- | Adds a new child to the existing list.  Also takes care of registering
 a finalizer for it, to remove it from the list when possible. -}
-addChild :: ChildList -> Statement -> IO ()
+addChild :: (Statement stmt) => (ChildList stmt) -> stmt -> IO ()
 addChild mcl stmt = 
     do weakptr <- mkWeakPtr stmt (Just (childFinalizer mcl))
        modifyMVar_ mcl (\l -> return (weakptr : l))
@@ -65,7 +65,7 @@ It is simply a filter that removes any finalized weak pointers from the parent.
 
 If the MVar is locked at the start, does nothing to avoid deadlock.  Future
 runs would probably catch it anyway. -}
-childFinalizer :: ChildList -> IO ()
+childFinalizer :: ChildList a -> IO ()
 childFinalizer mcl = do
   c <- tryTakeMVar mcl
   case c of
