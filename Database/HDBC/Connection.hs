@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    TypeFamilies #-}
+    TypeFamilies
+  , DeriveDataTypeable #-}
 
 {- |
    Module     : Database.HDBC.Types
@@ -23,9 +24,10 @@ module Database.HDBC.Connection
        (
          Connection(..)
        , ConnStatus(..)
+       , ConnWrapper(..)
        ) where
 
-import Database.HDBC.Statement (Statement)
+import Database.HDBC.Statement
 import Database.HDBC.SqlError
 
 import Data.Typeable
@@ -51,3 +53,24 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   proxiedClientVer :: conn -> String
   dbServerVer :: conn -> String
   dbTransactionSupport :: conn -> Bool
+
+data ConnWrapper = forall conn. Connection conn => ConnWrapper conn
+                   deriving (Typeable)
+
+instance Connection ConnWrapper where
+  type ConnStatement ConnWrapper = StmtWrapper
+
+  disconnect (ConnWrapper conn) = disconnect conn
+  start (ConnWrapper conn) = start conn
+  commit (ConnWrapper conn) = commit conn
+  rollback (ConnWrapper conn) = rollback conn
+  inTransaction (ConnWrapper conn) = inTransaction conn
+  connStatus (ConnWrapper conn) = connStatus conn
+  prepare (ConnWrapper conn) str = (prepare conn str) >>= (\s -> return $ StmtWrapper s)
+  clone (ConnWrapper conn) = (clone conn) >>= (\c -> return $ ConnWrapper c)
+  hdbcDriverName (ConnWrapper conn) = hdbcDriverName conn
+  hdbcClientVer (ConnWrapper conn) = hdbcClientVer conn
+  proxiedClientName (ConnWrapper conn) = proxiedClientName conn
+  proxiedClientVer (ConnWrapper conn) = proxiedClientVer conn
+  dbServerVer (ConnWrapper conn) = dbServerVer conn
+  dbTransactionSupport (ConnWrapper conn) = dbTransactionSupport conn

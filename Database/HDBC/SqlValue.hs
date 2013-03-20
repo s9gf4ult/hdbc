@@ -262,10 +262,6 @@ instance Convertible TL.Text SqlValue where
 instance Convertible SqlValue TL.Text where
     safeConvert = fmap TL.pack . safeConvert
 
-#ifdef __HUGS__
-instance Typeable B.ByteString where
-    typeOf _ = mkTypeName "ByteString"
-#endif
 
 instance Convertible B.ByteString SqlValue where
     safeConvert = return . SqlByteString

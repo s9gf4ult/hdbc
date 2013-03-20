@@ -28,6 +28,7 @@ module Database.HDBC.Utils
        , sqlExceptions
        , handleSqlError
        , throwSqlError
+       , sqlBracket
          -- * Convertible helpers
        , toSql
        , safeFromSql

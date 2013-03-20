@@ -1,18 +1,21 @@
+{-# LANGUAGE
+    DeriveDataTypeable #-}
 
 module Database.HDBC.Statement
        (
          Statement(..)
        , StatementStatus(..)
+       , StmtWrapper(..)
        )  where
-  
+
 import Database.HDBC.SqlValue (SqlValue)
 import Database.HDBC.SqlError
 
 import Data.Typeable
 
-data StatementStatus = StmtNew      -- ^ Newly created statement
-                     | StmtExecuted -- ^ Expression executed
-                     | StmtFinished -- ^ Finished, fetching rows will return 'Nothing'
+data StatementStatus = StatementNew      -- ^ Newly created statement
+                     | StatementExecuted -- ^ Expression executed
+                     | StatementFinished -- ^ Finished, fetching rows will return 'Nothing'
 
 class (Typeable stmt) => Statement stmt where
   execute :: stmt -> [SqlValue] -> SqlResult ()
@@ -25,3 +28,16 @@ class (Typeable stmt) => Statement stmt where
   getColumnNames :: stmt -> SqlResult [String]
   originalQuery :: stmt -> String
 
+data StmtWrapper = forall stmt. Statement stmt => StmtWrapper stmt
+                   deriving (Typeable)
+
+instance Statement StmtWrapper where
+  execute (StmtWrapper stmt) = execute stmt
+  executeRaw (StmtWrapper stmt) = executeRaw stmt
+  executeMany (StmtWrapper stmt) = executeMany stmt
+  statementStatus (StmtWrapper stmt) = statementStatus stmt
+  affectedRows (StmtWrapper stmt) = affectedRows stmt
+  finish (StmtWrapper stmt) = finish stmt
+  fetchRow (StmtWrapper stmt) = fetchRow stmt
+  getColumnNames (StmtWrapper stmt) = getColumnNames stmt
+  originalQuery (StmtWrapper stmt) = originalQuery stmt

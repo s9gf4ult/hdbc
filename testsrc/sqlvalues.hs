@@ -30,7 +30,7 @@ import Debug.Trace(trace)
 
 ts s = trace (show s) s
 
-#if MIN_VERSION_Decimal(0,2,4)
+#if MIN_VERSION_Decimal(0,3,1)
 -- Decimal-0.2.4 has no Arbitrary instance in library any more
 instance (Arbitrary i, Integral i) => Arbitrary (DecimalRaw i) where
   arbitrary = Decimal <$> arbitrary <*> arbitrary
