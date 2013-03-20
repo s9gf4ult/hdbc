@@ -1,5 +1,7 @@
 {-# LANGUAGE
-    DeriveDataTypeable #-}
+    DeriveDataTypeable
+  , ExistentialQuantification
+ #-}
 
 module Database.HDBC.Statement
        (

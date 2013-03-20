@@ -24,7 +24,6 @@ import Data.Decimal
 import Data.Time
 import Data.Fixed
 import Data.Convertible (Convertible(..))
-import qualified System.Time as ST
 
 import Debug.Trace(trace)
 

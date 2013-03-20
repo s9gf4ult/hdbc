@@ -1,7 +1,9 @@
 {-# LANGUAGE
     CPP
   , TypeFamilies
-  , DeriveDataTypeable #-}
+  , DeriveDataTypeable
+  , FlexibleContexts
+ #-}
 
 {- |
    Module     : Database.HDBC.Utils

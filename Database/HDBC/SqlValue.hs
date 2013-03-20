@@ -1,5 +1,11 @@
 {-# LANGUAGE
-    DeriveDataTypeable #-}
+    CPP
+  , DeriveDataTypeable
+  , MultiParamTypeClasses
+  , FlexibleInstances
+  , FlexibleContexts
+
+ #-}
 
 #if ! (MIN_VERSION_time(1,1,3))
 {-# LANGUAGE
@@ -227,9 +233,9 @@ instance Eq SqlValue where
 instance Convertible SqlValue SqlValue where
     safeConvert = return
 
-instance Convertible String SqlValue where
+instance Convertible [Char] SqlValue where
     safeConvert = return . SqlString
-instance Convertible SqlValue String where
+instance Convertible SqlValue [Char] where
 
   safeConvert (SqlDecimal a)        = return $ show a
   safeConvert (SqlWord32 a)         = return $ show a

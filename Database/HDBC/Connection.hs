@@ -1,6 +1,9 @@
 {-# LANGUAGE
     TypeFamilies
-  , DeriveDataTypeable #-}
+  , DeriveDataTypeable
+  , ExistentialQuantification
+  , FlexibleContexts
+ #-}
 
 {- |
    Module     : Database.HDBC.Types
