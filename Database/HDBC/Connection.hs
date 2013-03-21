@@ -16,10 +16,6 @@
 
 Types for HDBC.
 
-Please note: this module is intended for authors of database driver libraries
-only.  Authors of applications using HDBC should use 'Database.HDBC'
-exclusively.
-
 Written by John Goerzen, jgoerzen\@complete.org
 -}
 
@@ -35,17 +31,48 @@ import Database.HDBC.SqlError
 
 import Data.Typeable
 
-data ConnStatus = ConnOK
-                | ConnDisconnected
-                | ConnBad
+-- | Connection status
+data ConnStatus = ConnOK           -- ^ Successfully connected
+                | ConnDisconnected -- ^ Successfully disconnected, all
+                                   -- statements must be closed at this state
+                | ConnBad          -- ^ Some bad situation
 
+-- | Typeclass to abstract the working with connection.                  
 class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
+  
+  -- | Statement overloded type for concrete connection
   type ConnStatement conn :: *
-
+  
+  -- | Disconnection from the database, every opened statement must be finished
+  -- after this method executed. 
   disconnect :: conn -> SqlResult ()
+
+  -- | Explicitly start the transaction. Without starting the transaction you
+  -- can not commit or rollback it. HDBC does not check if transaction started
+  -- or not, this is the application's resposibility.
+  --
+  -- This is not recomended to use 'start' by hands, use
+  -- 'Database.HDBC.Utils.withTransaction' instead
   start :: conn -> SqlResult ()
+
+  -- | Explicitly commit started transaction. You must 'start' the transaction
+  -- before 'commit'
+  --
+  -- This is not recomended to use 'commit' by hands, use
+  -- 'Database.HDBC.Utils.withTransaction' instead
   commit :: conn -> SqlResult ()
+
+  -- | Rollback the transaction's state. You must 'start' the transaction before
+  -- 'rollback'
+  --
+  -- This is not recomended to use 'rollback' by hands, use
+  -- 'Database.HDBC.Utils.withTransaction' instead
   rollback :: conn -> SqlResult ()
+
+  -- | Check if current connection is in transaction state. Return True if
+  -- transaction is started. Each driver implements it with it's own way: some
+  -- RDBMS has API to check transaction state (like PostgreSQL), some has no
+  -- (like Sqlite3), so this drivers just save some flag 
   inTransaction :: conn -> SqlResult Bool
   connStatus :: conn -> SqlResult ConnStatus
   prepare :: conn -> String -> SqlResult (ConnStatement conn)
