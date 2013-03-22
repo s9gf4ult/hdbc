@@ -21,9 +21,13 @@ Written by John Goerzen, jgoerzen\@complete.org
 
 module Database.HDBC.Connection
        (
+         -- * Typeclasses
          Connection(..)
+         -- * Data types
        , ConnStatus(..)
        , ConnWrapper(..)
+         -- * functions
+       , castConnection
        ) where
 
 import Database.HDBC.Statement
@@ -40,7 +44,7 @@ data ConnStatus = ConnOK           -- ^ Successfully connected
 -- | Typeclass to abstract the working with connection.                  
 class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   
-  -- | Statement overloded type for concrete connection
+  -- | Statement overloded type for specific connection type
   type ConnStatement conn :: *
   
   -- | Disconnection from the database, every opened statement must be finished
@@ -74,16 +78,51 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   -- RDBMS has API to check transaction state (like PostgreSQL), some has no
   -- (like Sqlite3), so this drivers just save some flag 
   inTransaction :: conn -> SqlResult Bool
+
   connStatus :: conn -> SqlResult ConnStatus
+
+  -- | Prepare the statement. Some databases has no feature of preparing
+  -- statements (PostgreSQL can just prepare named statements), so each driver
+  -- behaves it's own way.
   prepare :: conn -> String -> SqlResult (ConnStatement conn)
+
+  -- | Clone the database connection. Return new connection with the same
+  -- settings
   clone :: conn -> SqlResult conn
+
+  -- | The name of the HDBC driver module for this connection. Ideally would be
+  -- the same as the database name portion of the Cabal package name.  For
+  -- instance, \"sqlite3\" or \"postgresql\".  This is the layer that is bound most
+  -- tightly to HDBC
   hdbcDriverName :: conn -> String
+
+  -- | The version of the C (or whatever) client library that the HDBC driver
+  -- module is bound to.  The meaning of this is driver-specific.  For an ODBC
+  -- or similar proxying driver, this should be the version of the ODBC library,
+  -- not the eventual DB client driver.
   hdbcClientVer :: conn -> String
+
+  -- | In the case of a system such as ODBC, the name of the database
+  -- client\/server in use, if available. For others, identical to
+  -- 'hdbcDriverName'.
   proxiedClientName :: conn -> String
+
+  -- | In the case of a system such as ODBC, the version of the database client
+  -- in use, if available.  For others, identical to 'hdbcClientVer'. This is
+  -- the next layer out past the HDBC driver.
   proxiedClientVer :: conn -> String
+
+  -- | The version of the database server, if available.
   dbServerVer :: conn -> String
+
+  -- | Whether or not the current database supports transactions. If False, then
+  -- 'commit' and 'rollback' should be expected to raise errors.
   dbTransactionSupport :: conn -> Bool
 
+
+-- | Wrapps the specific connection. You can write database-independent code
+-- mixing it with database-dependent using 'castConnection' function to cast
+-- Wrapper to specific connection type, if you need.
 data ConnWrapper = forall conn. Connection conn => ConnWrapper conn
                    deriving (Typeable)
 
@@ -104,3 +143,10 @@ instance Connection ConnWrapper where
   proxiedClientVer (ConnWrapper conn) = proxiedClientVer conn
   dbServerVer (ConnWrapper conn) = dbServerVer conn
   dbTransactionSupport (ConnWrapper conn) = dbTransactionSupport conn
+
+-- | Cast wrapped connection to the specific connection type using 'cast' of
+-- 'Typeable'. You can write database-specific code safely casting wrapped
+-- connection to specific type dynamically.
+castConnection :: (Connection conn) => ConnWrapper -> Maybe conn
+castConnection (ConnWrapper conn) = cast conn
+  
