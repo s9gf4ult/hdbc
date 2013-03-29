@@ -52,16 +52,26 @@ class (Typeable stmt) => Statement stmt where
   -- will return 'StatementFinished'.
   finish :: stmt -> SqlResult ()
 
-  -- | Reset statement to initial state.
+  -- | Reset statement to it's initial state.
   reset :: stmt -> SqlResult ()
 
-  
+  -- | Fetch next row from the executed statement. Return Nothing when there is
+  -- no more results acceptable. Each call return next row from the result.
+  -- 
+  -- UPDATE INSERT and DELETE queries will likely return Nothing.
+  -- 
+  -- NOTE: You still need to finish explicitly the statement after receiving
+  -- Nothing, unlike with old HDBC interface.
   fetchRow :: stmt -> SqlResult (Maybe [SqlValue])
-  
+
+  -- | Return list of column names of the result.
   getColumnNames :: stmt -> SqlResult [String]
-  
+
+  -- | Return the original executed query.
   originalQuery :: stmt -> String
 
+-- | Wrapper around some specific 'Statement' instance to write
+-- database-independent code
 data StmtWrapper = forall stmt. Statement stmt => StmtWrapper stmt
                    deriving (Typeable)
 
