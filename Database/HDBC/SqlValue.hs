@@ -39,7 +39,7 @@ quickError sv = convError "incompatible types" sv
 
 
 
-{- | 'SqlValue' is he main type for expressing Haskell values to SQL databases.
+{- | 'SqlValue' is the main type for expressing Haskell values to SQL databases.
 
 /INTRODUCTION TO SQLVALUE/
 
@@ -47,21 +47,22 @@ This type is used to marshall Haskell data to and from database APIs.
 HDBC driver interfaces will do their best to use the most accurate and
 efficient way to send a particular value to the database server.
 
-Values read back from the server are constructed with the most appropriate 'SqlValue'
-constructor.  'fromSql' or 'safeFromSql'
-can then be used to convert them into whatever type
-is needed locally in Haskell.
+Values read back from the server are constructed with the most appropriate
+'SqlValue' constructor.  'Database.HDBC.Utils.fromSql' or
+'Database.HDBC.Utils.safeFromSql' can then be used to convert them into whatever
+type is needed locally in Haskell.
 
-Most people will use 'toSql' and 'fromSql' instead of manipulating
-'SqlValue's directly.
+Most people will use 'Database.HDBC.Utils.toSql' and
+'Database.HDBC.Utils.fromSql' instead of manipulating 'SqlValue's directly.
 
 /EASY CONVERSIONS BETWEEN HASKELL TYPES/
 
-Conversions are powerful; for instance, you can call 'fromSql' on a SqlInt32
-and get a String or a Double out of it.  This class attempts to Do
-The Right Thing whenever possible, and will raise an error when asked to
-do something incorrect.  In particular, when converting to any type
-except a Maybe, 'SqlNull' as the input will cause an error to be raised.
+Conversions are powerful; for instance, you can call
+'Database.HDBC.Utils.fromSql' on a SqlInt32 and get a String or a Double out of
+it.  This class attempts to Do The Right Thing whenever possible, and will raise
+an error when asked to do something incorrect or ambiguous.  In particular, when
+converting to any type except a Maybe, 'SqlNull' as the input will cause an
+error to be raised.
 
 Conversions are implemented in terms of the "Data.Convertible" module, part of the
 convertible package.  You can refer to its documentation, and import that module,
@@ -72,69 +73,21 @@ Here are some notes about conversion:
 
  * Fractions of a second are not preserved on time values
 
- * There is no @safeToSql@ because 'toSql' never fails.
-
-See also 'toSql', 'safeFromSql', 'fromSql', 'nToSql', 'iToSql', 'posixToSql'.
+ * There is no @safeToSql@ because 'Database.HDBC.Utils.toSql' never fails.
 
 /ERROR CONDITIONS/
 
 There may sometimes be an error during conversion.  For instance, if you have a
-'SqlString' and are attempting to convert it to an Integer, but it doesn't parse as
-an Integer, you will get an error.  This will be indicated as an exception if using
-'fromSql', or a Left result if using 'safeFromSql'.
-
-/SPECIAL NOTE ON POSIXTIME/
-
-Note that a 'NominalDiffTime' or 'POSIXTime' is converted to 'SqlDiffTime' by
-'toSql'.  HDBC cannot differentiate between 'NominalDiffTime' and 'POSIXTime'
-since they are the same underlying type.  You must construct 'SqlPOSIXTime'
-manually or via 'posixToSql', or use 'SqlUTCTime'.
+'SqlString' and are attempting to convert it to an Integer, but it doesn't parse
+as an Integer, you will get an error.  This will be indicated as an exception if
+using 'Database.HDBC.Utils.fromSql', or a Left result if using
+'Database.HDBC.Utils.safeFromSql'.
 
 /DETAILS ON SQL TYPES/
 
-HDBC database backends are expected to marshal date and time data back and
-forth using the appropriate representation for the underlying database engine.
-Databases such as PostgreSQL with builtin date and time types should see automatic
-conversion between these Haskell types to database types.  Other databases will be
-presented with an integer or a string.  Care should be taken to use the same type on
-the Haskell side as you use on the database side.  For instance, if your database
-type lacks timezone information, you ought not to use ZonedTime, but
-instead LocalTime or UTCTime.  Database type systems are not always as rich
-as Haskell.  For instance, for data stored in a TIMESTAMP
-WITHOUT TIME ZONE column, HDBC may not be able to tell if it is intended
-as UTCTime or LocalTime data, and will happily convert it to both,
-upon your request.  It is
-your responsibility to ensure that you treat timezone issues with due care.
 
-This behavior also exists for other types.  For instance, many databases do not
-have a Rational type, so they will just use the show function and
-store a Rational as a string.
+/TEXT AND BYTESTRINGS/
 
-The conversion between Haskell types and database types is complex,
-and generic code in HDBC or its backends cannot possibly accomodate
-every possible situation.  In some cases, you may be best served by converting your
-Haskell type to a String, and passing that to the database.
-
-/UNICODE AND BYTESTRINGS/
-
-Beginning with HDBC v2.0, interactions with a database are presumed to occur in UTF-8.
-
-To accomplish this, whenever a ByteString must be converted to or from a String,
-the ByteString is assumed to be in UTF-8 encoding, and will be decoded or encoded
-as appropriate.  Database drivers will generally present text or string data they have
-received from the database as a SqlValue holding a ByteString, which 'fromSql' will
-automatically convert to a String, and thus automatically decode UTF-8, when
-you need it.  In the other direction, database drivers will generally convert
-a 'SqlString' to a ByteString in UTF-8 encoding before passing it to the
-database engine.
-
-If you are handling some sort of binary data that is not in UTF-8, you can of course
-work with the ByteString directly, which will bypass any conversion.
-
-Due to lack of support by database engines, lazy ByteStrings are not passed to database
-drivers.  When you use 'toSql' on a lazy ByteString, it will be converted to a strict
-ByteString for storage.  Similarly, 'fromSql' will convert a strict ByteString to
-a lazy ByteString if you demand it.
 
 /EQUALITY OF SQLVALUE/
 
@@ -149,23 +102,6 @@ comparisons can be made, then they are not equal:
 
  * The values of each, when converted to a string, are equal.
 
-/STRING VERSIONS OF TIMES/
-
-Default string representations are given as comments below where such are non-obvious.
-These are used for 'fromSql' when a 'String' is desired.  They are also defaults for
-representing data to SQL backends, though individual backends may override them
-when a different format is demanded by the underlying database.  Date and time formats
-use ISO8601 date format, with HH:MM:SS added for time, and -HHMM added for timezone
-offsets.
-
-/DEPRECATED CONSTRUCTORS/
-
-'SqlEpochTime' and 'SqlTimeDiff' are no longer created automatically by any
-'toSql' or 'fromSql' functions or database backends.  They may still be manually
-constructed, but are
-expected to be removed in a future version.  Although these two constructures will
-be removed, support for marshalling to and from the old System.Time data will be
-maintained as long as System.Time is, simply using the newer data types for conversion.
 -}
 data SqlValue =
   {- | Arbitrary precision value -}
