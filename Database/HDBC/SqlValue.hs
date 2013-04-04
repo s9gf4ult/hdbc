@@ -41,6 +41,32 @@ quickError sv = convError "incompatible types" sv
 
 {- | 'SqlValue' is the main type for expressing Haskell values to SQL databases.
 
+/WHAT IS SQLVALUE/
+
+SqlValue is an intermediate type to store/recevie data to/from the
+database. Every database driver will do it's best to properly convert any
+SqlValue to the database record's field, and properly convert the record's field
+to SqlValue back.
+
+The 'SqlValue' has predefined 'Convertible' instances for many Haskell's
+types. Any Haskell's type can be converted to the 'SqlValue' with
+'Database.HDBC.Utils.toSql' function. There is no safeToSql function because
+toSql never fails. Also, any 'SqlValue' type can be converted to almost any
+Haskell's type as well. Not any 'SqlValue' can be converted back to Haskell's
+type, so there is 'Database.HDBC.Utils.safeFromSql' function to do that
+safely. There is unsafe 'Database.HDBC.Utils.toSql' function of caurse.
+
+You can sure, that @fromSql . toSql == id@
+
+/SQLVALUE CONSTRUCTORS/
+
+SqlValue constructors is the MINIMAL set of constructors, required to represent
+the most wide range of native database types.
+
+For example, there is FLOAT native database type and DOUBLE, but any DOUBLE can
+carry any FLOAT value, so there is no need to create 'SqlValue' constructor to
+represent FLOAT type. 
+
 /INTRODUCTION TO SQLVALUE/
 
 This type is used to marshall Haskell data to and from database APIs.
@@ -104,7 +130,7 @@ comparisons can be made, then they are not equal:
 
 -}
 data SqlValue =
-  {- | Arbitrary precision value -}
+  {- | Arbitrary precision DECIMAL value -}
   SqlDecimal Decimal
   | SqlWord32 Word32
   | SqlWord64 Word64
