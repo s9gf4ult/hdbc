@@ -65,41 +65,27 @@ the most wide range of native database types.
 
 For example, there is FLOAT native database type and DOUBLE, but any DOUBLE can
 carry any FLOAT value, so there is no need to create 'SqlValue' constructor to
-represent FLOAT type. 
+represent FLOAT type, we can do it with Double. But there is DECIMAL database
+type, representing arbitrary precision value which can be carried just by
+'Decimal' Haskell's type, so we need a constructor for it.
 
-/INTRODUCTION TO SQLVALUE/
+There is no SqlRational any more, because there is no one database which have
+native Rational type. This is the key idea: if database can not store this type
+natively we will not create 'SqlValue' clause for it.
 
-This type is used to marshall Haskell data to and from database APIs.
-HDBC driver interfaces will do their best to use the most accurate and
-efficient way to send a particular value to the database server.
+Each SqlValue constructor is documented or self-explaining to understand what it
+is needed for.
 
-Values read back from the server are constructed with the most appropriate
-'SqlValue' constructor.  'Database.HDBC.Utils.fromSql' or
-'Database.HDBC.Utils.safeFromSql' can then be used to convert them into whatever
-type is needed locally in Haskell.
+/CONVERTIBLE INSTANCES/
 
-Most people will use 'Database.HDBC.Utils.toSql' and
-'Database.HDBC.Utils.fromSql' instead of manipulating 'SqlValue's directly.
-
-/EASY CONVERSIONS BETWEEN HASKELL TYPES/
-
-Conversions are powerful; for instance, you can call
-'Database.HDBC.Utils.fromSql' on a SqlInt32 and get a String or a Double out of
-it.  This class attempts to Do The Right Thing whenever possible, and will raise
-an error when asked to do something incorrect or ambiguous.  In particular, when
-converting to any type except a Maybe, 'SqlNull' as the input will cause an
-error to be raised.
-
-Conversions are implemented in terms of the "Data.Convertible" module, part of the
-convertible package.  You can refer to its documentation, and import that module,
-if you wish to parse the Left result from 'safeFromSql' yourself, or write your
-own conversion instances.
-
-Here are some notes about conversion:
-
- * Fractions of a second are not preserved on time values
-
- * There is no @safeToSql@ because 'Database.HDBC.Utils.toSql' never fails.
+The key idea is to do the most obvious conversion between types only if it is
+not ambiguous. For example, the most obvious conversion of Double to Int32 is
+just truncate the Double, the most obvious conversion of String to UTCTime is to
+try read the String as date and time. But there is no obvious way to convert
+Int32 to UTCTime, so if you will try to convert (SqlInt32 44) to date you will
+fail. User must handle this cases properly converting values with right way, it
+is not very good idea to silently perform strange and ambiguous convertions
+between absolutely different data types.
 
 /ERROR CONDITIONS/
 
@@ -109,11 +95,19 @@ as an Integer, you will get an error.  This will be indicated as an exception if
 using 'Database.HDBC.Utils.fromSql', or a Left result if using
 'Database.HDBC.Utils.safeFromSql'.
 
-/DETAILS ON SQL TYPES/
 
+/STORING SQLVALUE TO DATABASE/
+
+Any SqlValue can be converted to Text and then readed from Text back. This is
+guaranteed by tests, so the database driver's author can use it to store and
+read data through Text for types which is not supported by the database
+natively.
 
 /TEXT AND BYTESTRINGS/
 
+
+
+/DATE AND TIME/
 
 /EQUALITY OF SQLVALUE/
 
