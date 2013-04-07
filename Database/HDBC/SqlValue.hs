@@ -105,9 +105,39 @@ natively.
 
 /TEXT AND BYTESTRINGS/
 
+We are using lazy Text everywhere because it is faster than String and has
+builders. Strict text can be converted to one-chanked lazy text with O(1)
+complexity, but lazy to strict converts with O(n) complexity, so it is logical
+to use lazy Text.
 
+We are not using ByteString as text encoded in UTF-8, ByteStrings are just
+sequences of bytes. We are using strict ByteStrings because HDBC drivers uses
+them to pass the ByteString to the C library as CString, so it must be strict.
+
+We are not using String as data of query or as query itself because it is not
+effective by memory and cpu.
 
 /DATE AND TIME/
+
+We are not using time with timezone, because there is no one database working
+with it natively except PostgreSQL, but the documentations of PostgreSQL says
+
+/To address these difficulties, we recommend using date/time types that contain
+both date and time when using time zones. We do not recommend using the type
+time with time zone (though it is supported by PostgreSQL for legacy
+applications and for compliance with the SQL standard). PostgreSQL assumes your
+local time zone for any type containing only date or time./
+
+This is not recomended to use time with timezone.
+
+We are using UTCTime instead of TimeWithTimezone because no one database
+actually save timezone information. All databases just convert datetime to
+UTCTime when save data and convert UTCTime back to LOCAL SERVER TIMEZONE when
+returning the data. So it is logical to work with timezones on the haskell side.
+
+Time intervals are not widely supported, actually just PostgreSQL and
+Oracle. So, if you need them you can serialize throgh SqlText by hands, or write
+your own Convertible instances to do that more convenient.
 
 /EQUALITY OF SQLVALUE/
 
@@ -132,8 +162,8 @@ data SqlValue =
   | SqlInt64 Int64
   | SqlInteger Integer
   | SqlDouble Double
-  | SqlString String
-  | SqlByteString B.ByteString
+  | SqlText TL.Text
+  | SqlBlob B.ByteString
   | SqlBool Bool
     {- | Represent bit field with 64 bits -}
   | SqlBitField Word64
@@ -162,8 +192,8 @@ instance Eq SqlValue where
     (SqlInt64 a)          == (SqlInt64 b)           = a == b
     (SqlInteger a)        == (SqlInteger b)         = a == b
     (SqlDouble a)         == (SqlDouble b)          = a == b
-    (SqlString a)         == (SqlString b)          = a == b
-    (SqlByteString a)     == (SqlByteString b)      = a == b
+    (SqlText a)           == (SqlText b)            = a == b
+    (SqlBlob a)           == (SqlBlob b)            = a == b
     (SqlBool a)           == (SqlBool b)            = a == b
     (SqlBitField a)       == (SqlBitField b)        = a == b
     (SqlUUID a)           == (SqlUUID b)            = a == b
@@ -190,7 +220,7 @@ instance Convertible SqlValue SqlValue where
     safeConvert = return
 
 instance Convertible [Char] SqlValue where
-    safeConvert = return . SqlString
+    safeConvert = return . SqlText . TL.pack
 instance Convertible SqlValue [Char] where
 
   safeConvert (SqlDecimal a)        = return $ show a
@@ -200,8 +230,8 @@ instance Convertible SqlValue [Char] where
   safeConvert (SqlInt64 a)          = return $ show a
   safeConvert (SqlInteger a)        = return $ show a
   safeConvert (SqlDouble a)         = return $ show a
-  safeConvert (SqlString a)         = return a
-  safeConvert (SqlByteString x)     = return . BUTF8.toString $ x
+  safeConvert (SqlText a)           = return $ TL.unpack
+  safeConvert (SqlBlob x)           = quickError x -- bytes is not a text
   safeConvert (SqlBool a)           = return $ show a
   safeConvert (SqlBitField a)       = return $ show a
   safeConvert (SqlUUID a)           = return $ show a
@@ -213,30 +243,30 @@ instance Convertible SqlValue [Char] where
   safeConvert x@SqlNull = quickError x
 
 instance Convertible TS.Text SqlValue where
-    safeConvert = return . SqlString . TS.unpack
+    safeConvert = return . SqlText . TL.fromChunks . (:[])
 
 instance Convertible SqlValue TS.Text where
-    safeConvert = fmap TS.pack . safeConvert
+  safeConvert (SqlText t) = return $ TL.toStrict t
+  safeConvert = fmap TS.pack . safeConvert
 
 instance Convertible TL.Text SqlValue where
-    safeConvert = return . SqlString . TL.unpack
+    safeConvert = return . SqlText 
 
 instance Convertible SqlValue TL.Text where
-    safeConvert = fmap TL.pack . safeConvert
-
+  safeConvert (SqlText t) = return t
+  safeConvert = fmap (TL.fromChunks . (:[]) . TS.pack) . safeConvert
 
 instance Convertible B.ByteString SqlValue where
-    safeConvert = return . SqlByteString
+    safeConvert = return . SqlBlob
 instance Convertible SqlValue B.ByteString where
-    safeConvert (SqlByteString x) = return x
-    safeConvert y@SqlNull = quickError y
-    safeConvert x = safeConvert x >>= return . BUTF8.fromString
+    safeConvert (SqlBlob x) = return x
+    safeConvert = quickError -- there is no sense to convert something to bytes except bytes
 
 instance Convertible BSL.ByteString SqlValue where
-    safeConvert = return . SqlByteString . B.concat . BSL.toChunks
+    safeConvert = fmap SqlBlob . safeConvert
 instance Convertible SqlValue BSL.ByteString where
-    safeConvert x = do bs <- safeConvert x
-                       return (BSL.fromChunks [bs])
+    safeConvert (SqlBlob x) = safeConvert x
+    safeConvert = quickError
 
 instance Convertible Int SqlValue where
     safeConvert x = fmap SqlInt64 $ safeConvert x
