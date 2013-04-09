@@ -4,6 +4,7 @@
   , MultiParamTypeClasses
   , FlexibleInstances
   , FlexibleContexts
+  , OverloadedStrings
 
  #-}
 
@@ -163,6 +164,9 @@ data SqlValue =
   | SqlInteger Integer
   | SqlDouble Double
   | SqlText TL.Text
+    -- | Blob field in the database. This field can not be implicitly converted
+    -- to any other type because it is just an array of bytes, not an UTF-8
+    -- encoded string.
   | SqlBlob B.ByteString
   | SqlBool Bool
     {- | Represent bit field with 64 bits -}
@@ -230,8 +234,8 @@ instance Convertible SqlValue [Char] where
   safeConvert (SqlInt64 a)          = return $ show a
   safeConvert (SqlInteger a)        = return $ show a
   safeConvert (SqlDouble a)         = return $ show a
-  safeConvert (SqlText a)           = return $ TL.unpack
-  safeConvert (SqlBlob x)           = quickError x -- bytes is not a text
+  safeConvert (SqlText a)           = return $ TL.unpack a
+  safeConvert x@(SqlBlob _)         = quickError x -- bytes is not a text
   safeConvert (SqlBool a)           = return $ show a
   safeConvert (SqlBitField a)       = return $ show a
   safeConvert (SqlUUID a)           = return $ show a
@@ -247,26 +251,26 @@ instance Convertible TS.Text SqlValue where
 
 instance Convertible SqlValue TS.Text where
   safeConvert (SqlText t) = return $ TL.toStrict t
-  safeConvert = fmap TS.pack . safeConvert
+  safeConvert x = fmap TS.pack $ safeConvert x
 
 instance Convertible TL.Text SqlValue where
     safeConvert = return . SqlText 
 
 instance Convertible SqlValue TL.Text where
   safeConvert (SqlText t) = return t
-  safeConvert = fmap (TL.fromChunks . (:[]) . TS.pack) . safeConvert
+  safeConvert x = fmap (TL.fromChunks . (:[]) . TS.pack) $ safeConvert x
 
 instance Convertible B.ByteString SqlValue where
     safeConvert = return . SqlBlob
 instance Convertible SqlValue B.ByteString where
     safeConvert (SqlBlob x) = return x
-    safeConvert = quickError -- there is no sense to convert something to bytes except bytes
+    safeConvert x = quickError x -- there is no sense to convert something to bytes except bytes
 
 instance Convertible BSL.ByteString SqlValue where
     safeConvert = fmap SqlBlob . safeConvert
 instance Convertible SqlValue BSL.ByteString where
     safeConvert (SqlBlob x) = safeConvert x
-    safeConvert = quickError
+    safeConvert x = quickError x
 
 instance Convertible Int SqlValue where
     safeConvert x = fmap SqlInt64 $ safeConvert x
@@ -278,8 +282,8 @@ instance Convertible SqlValue Int where
   safeConvert (SqlInt64 a)            = safeConvert a
   safeConvert (SqlInteger a)          = safeConvert a
   safeConvert (SqlDouble a)           = safeConvert a
-  safeConvert (SqlString a)           = read' a
-  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlText a)             = read' a
+  safeConvert x@(SqlBlob _)           = quickError x -- Why should we read this bytes as UTF-8 ?
   safeConvert (SqlBool a)             = return $ if a then 1 else 0
   safeConvert (SqlBitField a)         = safeConvert a
   safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
@@ -300,8 +304,8 @@ instance Convertible SqlValue Int32 where
   safeConvert (SqlInt64 a)            = safeConvert a
   safeConvert (SqlInteger a)          = safeConvert a
   safeConvert (SqlDouble a)           = safeConvert a
-  safeConvert (SqlString a)           = read' a
-  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlText a)             = read' a
+  safeConvert x@(SqlBlob _)           = quickError x
   safeConvert (SqlBool a)             = return $ if a then 1 else 0
   safeConvert (SqlBitField a)         = safeConvert a
   safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
@@ -322,8 +326,8 @@ instance Convertible SqlValue Int64 where
   safeConvert (SqlInt64 a)            = return a
   safeConvert (SqlInteger a)          = safeConvert a
   safeConvert (SqlDouble a)           = safeConvert a
-  safeConvert (SqlString a)           = read' a
-  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlText a)             = read' a
+  safeConvert x@(SqlBlob _)           = quickError x
   safeConvert (SqlBool a)             = return $ if a then 1 else 0
   safeConvert (SqlBitField a)         = safeConvert a
   safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
@@ -344,8 +348,8 @@ instance Convertible SqlValue Word32 where
   safeConvert (SqlInt64 a)            = safeConvert a
   safeConvert (SqlInteger a)          = safeConvert a
   safeConvert (SqlDouble a)           = safeConvert a
-  safeConvert (SqlString a)           = read' a
-  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlText a)             = read' a
+  safeConvert x@(SqlBlob _)           = quickError x
   safeConvert (SqlBool a)             = return $ if a then 1 else 0
   safeConvert (SqlBitField a)         = safeConvert a
   safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
@@ -366,8 +370,8 @@ instance Convertible SqlValue Word64 where
   safeConvert (SqlInt64 a)            = safeConvert a
   safeConvert (SqlInteger a)          = safeConvert a
   safeConvert (SqlDouble a)           = safeConvert a
-  safeConvert (SqlString a)           = read' a
-  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlText a)             = read' a
+  safeConvert x@(SqlBlob _)           = quickError x
   safeConvert (SqlBool a)             = return $ if a then 1 else 0
   safeConvert (SqlBitField a)         = return a
   safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
@@ -388,8 +392,8 @@ instance Convertible SqlValue Integer where
   safeConvert (SqlInt64 a)            = safeConvert a
   safeConvert (SqlInteger a)          = return a
   safeConvert (SqlDouble a)           = safeConvert a
-  safeConvert (SqlString a)           = read' a
-  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlText a)             = read' a
+  safeConvert x@(SqlBlob _)           = quickError x
   safeConvert (SqlBool a)             = return $ if a then 1 else 0
   safeConvert (SqlBitField a)         = safeConvert a
   safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to int has no sense
@@ -410,16 +414,16 @@ instance Convertible SqlValue Bool where
   safeConvert (SqlInt64 a)            = numToBool a
   safeConvert (SqlInteger a)          = numToBool a
   safeConvert (SqlDouble a)           = numToBool a
-  safeConvert y@(SqlString x) =
-    case map toUpper x of
-      "TRUE" -> Right True
-      "T" -> Right True
+  safeConvert y@(SqlText x) =
+    case TL.toUpper x of
+      "TRUE"  -> Right True
+      "T"     -> Right True
       "FALSE" -> Right False
-      "F" -> Right False
-      "0" -> Right False
-      "1" -> Right True
-      _ -> convError "Cannot parse given String as Bool" y
-  safeConvert (SqlByteString x)       = (safeConvert . SqlString . BUTF8.toString) x
+      "F"     -> Right False
+      "0"     -> Right False
+      "1"     -> Right True
+      _       -> convError "Cannot parse given String as Bool" y
+  safeConvert x@(SqlBlob _)           = quickError x
   safeConvert (SqlBool a)             = return a
   safeConvert (SqlBitField a)         = numToBool a
   safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to Bool has no sense
@@ -443,8 +447,8 @@ instance Convertible SqlValue Double where
   safeConvert (SqlInt64 a)            = safeConvert a
   safeConvert (SqlInteger a)          = safeConvert a
   safeConvert (SqlDouble a)           = return a
-  safeConvert (SqlString a)           = read' a
-  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlText a)             = read' a
+  safeConvert x@(SqlBlob _)           = quickError x
   safeConvert (SqlBool a)             = return $ if a then 1 else 0
   safeConvert (SqlBitField a)         = safeConvert a
   safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to Double has no sense
@@ -465,8 +469,8 @@ instance Convertible SqlValue Decimal where
   safeConvert (SqlInt64 a)            = safeConvert a
   safeConvert (SqlInteger a)          = safeConvert a
   safeConvert (SqlDouble a)           = safeConvert a
-  safeConvert (SqlString a)           = read' a
-  safeConvert (SqlByteString x)       = (read' . BUTF8.toString) x
+  safeConvert (SqlText a)             = read' a
+  safeConvert x@(SqlBlob _)           = quickError x
   safeConvert (SqlBool a)             = return $ if a then 1 else 0
   safeConvert (SqlBitField a)         = safeConvert a
   safeConvert x@(SqlUUID _)           = quickError x -- converting time or date to Double has no sense
@@ -496,8 +500,8 @@ instance Convertible SqlValue Day where
   safeConvert x@(SqlInt64 _)                     = quickError x
   safeConvert x@(SqlInteger _)                   = quickError x
   safeConvert x@(SqlDouble _)                    = quickError x
-  safeConvert (SqlString x)                      = parseTime' (iso8601DateFormat Nothing) x
-  safeConvert (SqlByteString x)                  = safeConvert (SqlString (BUTF8.toString x))
+  safeConvert (SqlText x)                        = parseTime' (iso8601DateFormat Nothing) $ TL.unpack x
+  safeConvert x@(SqlBlob _)                      = quickError x
   safeConvert x@(SqlBool _)                      = quickError x
   safeConvert x@(SqlBitField _)                  = quickError x
   safeConvert x@(SqlUUID _)                      = quickError x
@@ -518,8 +522,8 @@ instance Convertible SqlValue TimeOfDay where
   safeConvert x@(SqlInt64 _)                           = quickError x
   safeConvert x@(SqlInteger _)                         = quickError x
   safeConvert x@(SqlDouble _)                          = quickError x
-  safeConvert (SqlString x)                            = parseTime' "%T%Q" x
-  safeConvert (SqlByteString x)                        = safeConvert (SqlString (BUTF8.toString x))
+  safeConvert (SqlText x)                              = parseTime' "%T%Q" $ TL.unpack x
+  safeConvert x@(SqlBlob _)                            = quickError x
   safeConvert x@(SqlBool _)                            = quickError x
   safeConvert x@(SqlBitField _)                        = quickError x
   safeConvert x@(SqlUUID _)                            = quickError x
@@ -540,8 +544,8 @@ instance Convertible SqlValue LocalTime where
   safeConvert x@(SqlInt64 _)          = quickError x
   safeConvert x@(SqlInteger _)        = quickError x
   safeConvert x@(SqlDouble _)         = quickError x
-  safeConvert (SqlString x)           = parseTime' (iso8601DateFormat (Just "%T%Q")) x
-  safeConvert (SqlByteString x)       = safeConvert (SqlString (BUTF8.toString x))
+  safeConvert (SqlText x)             = parseTime' (iso8601DateFormat (Just "%T%Q")) $ TL.unpack x
+  safeConvert x@(SqlBlob _)           = quickError x
   safeConvert x@(SqlBool _)           = quickError x
   safeConvert x@(SqlBitField _)       = quickError x
   safeConvert x@(SqlUUID _)           = quickError x
@@ -562,8 +566,8 @@ instance Convertible SqlValue UTCTime where
   safeConvert x@(SqlInt64 _)          = quickError x
   safeConvert x@(SqlInteger _)        = quickError x
   safeConvert x@(SqlDouble _)         = quickError x
-  safeConvert (SqlString x)           = parseTime' (iso8601DateFormat (Just "%T%Q")) x
-  safeConvert (SqlByteString x)       = safeConvert (SqlString (BUTF8.toString x))
+  safeConvert (SqlText x)             = parseTime' (iso8601DateFormat (Just "%T%Q")) $ TL.unpack x
+  safeConvert x@(SqlBlob _)           = quickError x
   safeConvert x@(SqlBool _)           = quickError x
   safeConvert x@(SqlBitField _)       = quickError x
   safeConvert x@(SqlUUID _)           = quickError x
@@ -579,15 +583,17 @@ instance (Convertible a SqlValue) => Convertible (Maybe a) SqlValue where
     safeConvert (Just a) = safeConvert a
 instance (Convertible SqlValue a) => Convertible SqlValue (Maybe a) where
     safeConvert SqlNull = return Nothing
-    safeConvert a = safeConvert a >>= (return . Just)
+    safeConvert a = fmap Just $ safeConvert a
 
 -- | Read a value from a string, and give an informative message
 --   if it fails.
-read' :: (Typeable a, Read a, Convertible SqlValue a) => String -> ConvertResult a
+read' :: (Typeable a, Read a, Convertible SqlValue a) => TL.Text -> ConvertResult a
 read' s =
-    case [x | (x, "") <- reads s] of
+    case [x | (x, t) <- reads rs, ("", "") <- lex t] of
       [x] -> Right x
-      _ -> convError "Cannot read source value as dest type" (SqlString s)
+      _ -> convError "Cannot read source value as dest type" (SqlText s)
+  where
+    rs = TL.unpack s
 
 #ifdef __HUGS__
 parseTime' :: (Typeable t, Convertible SqlValue t) => String -> String -> ConvertResult t
@@ -598,7 +604,7 @@ parseTime' :: (Typeable t, Convertible SqlValue t, ParseTime t) => String -> Str
 parseTime' fmtstr inpstr =
     case parseTime defaultTimeLocale fmtstr inpstr of
       Nothing -> convError ("Cannot parse using default format string " ++ show fmtstr)
-                 (SqlString inpstr)
+                 (SqlText $ TL.pack inpstr)
       Just x -> Right x
 #endif
 
