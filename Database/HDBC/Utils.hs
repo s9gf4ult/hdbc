@@ -25,18 +25,12 @@ Written by John Goerzen, jgoerzen\@complete.org
 module Database.HDBC.Utils
        (
          -- * Exception handling
-         catchSql
-       , handleSql
-       , sqlExceptions
-       , handleSqlError
-       , throwSqlError
+         throwSqlError
        , sqlBracket
          -- * Convertible helpers
        , toSql
        , safeFromSql
        , fromSql
-       , nToSql
-       , iToSql
          -- * Transaction handling
        , withTransaction
          -- * Query execution helpers
@@ -48,6 +42,8 @@ module Database.HDBC.Utils
 import Prelude hiding (catch)
 
 import Control.Monad.Trans.Either (EitherT (..))
+
+import qualified Data.Text.Lazy as TL
   
 import Database.HDBC.Connection
 import Database.HDBC.Statement
@@ -55,33 +51,6 @@ import Database.HDBC.SqlValue
 import Database.HDBC.SqlError
 import Control.Exception (bracket, catchJust, onException, catch, throw, SomeException(..))
 import Data.Convertible
-
-{- | Execute the given IO action.
-
-If it raises a 'SqlError', then execute the supplied handler and return its
-return value.  Otherwise, proceed as normal. -}
-catchSql :: IO a -> (SqlError -> IO a) -> IO a
-catchSql action handler = 
-    catchJust sqlExceptions action handler
-
-{- | Like 'catchSql', with the order of arguments reversed. -}
-handleSql :: (SqlError -> IO a) -> IO a -> IO a
-handleSql h f = catchSql f h
-
-{- | Given an Exception, return Just SqlError if it was an SqlError, or Nothing
-otherwise. Useful with functions like catchJust. -}
-sqlExceptions :: SqlError -> Maybe SqlError
-sqlExceptions e = Just e
-
-
-{- | Catches 'SqlError's, and re-raises them as IO errors with fail.
-Useful if you don't care to catch SQL errors, but want to see a sane
-error message if one happens.  One would often use this as a high-level
-wrapper around SQL calls. -}
-handleSqlError :: IO a -> IO a
-handleSqlError action =
-    catchSql action handler
-    where handler e = fail ("SQL error: " ++ show e)
 
 throwSqlError :: SqlResult a -> IO a
 throwSqlError m = do
@@ -108,15 +77,6 @@ safeFromSql = safeConvert
    'convert'.  See extended notes on 'SqlValue'. -}
 fromSql :: Convertible SqlValue a => SqlValue -> a
 fromSql = convert
-
-{- | Converts any Integral type to a 'SqlValue' by using toInteger. -}
-nToSql :: Integral a => a -> SqlValue
-nToSql n = SqlInteger (toInteger n)
-
-{- | Convenience function for using numeric literals in your program. -}
-iToSql :: Int -> SqlValue
-iToSql = toSql
-
 
 {- | Execute some code.  If any uncaught exception occurs, run
 'rollback' and re-raise it.  Otherwise, run 'commit' and return.
@@ -161,7 +121,7 @@ it. Safely finalize Statement after action is done.
 -}
 withStatement :: (Connection conn, Statement stmt, stmt ~ (ConnStatement conn))
                  => conn                 -- ^ Connection
-                 -> String               -- ^ Query string
+                 -> TL.Text              -- ^ Query string
                  -> (stmt -> SqlResult a) -- ^ Action around statement
                  -> SqlResult a          -- ^ Result of action
 withStatement conn query = sqlBracket
@@ -177,7 +137,7 @@ sqlBracket aloc dealoc action = EitherT $ bracket ioAlloc ioDealloc ioAction
 
 {-| Run query and safely finalize statement after that
 -}
-run :: (Connection conn) => conn -> String -> [SqlValue] -> SqlResult ()
+run :: (Connection conn) => conn -> TL.Text -> [SqlValue] -> SqlResult ()
 run conn query values = withStatement conn query $
                         \s -> execute s values
 
@@ -185,10 +145,10 @@ run conn query values = withStatement conn query $
 {-| Run raw query without parameters and safely finalize
 statement
 -}
-runRaw :: (Connection conn) => conn -> String -> SqlResult ()
+runRaw :: (Connection conn) => conn -> TL.Text -> SqlResult ()
 runRaw conn query = withStatement conn query executeRaw
   
 {-| run executeMany and safely finalize statement -}
-runMany :: (Connection conn) => conn -> String -> [[SqlValue]] -> SqlResult ()
+runMany :: (Connection conn) => conn -> TL.Text -> [[SqlValue]] -> SqlResult ()
 runMany conn query values = withStatement conn query $
                             \s -> executeMany s values

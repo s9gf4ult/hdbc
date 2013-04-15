@@ -30,6 +30,8 @@ module Database.HDBC.Connection
        , castConnection
        ) where
 
+import qualified Data.Text.Lazy as TL
+
 import Database.HDBC.Statement
 import Database.HDBC.SqlError
 
@@ -84,7 +86,7 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   -- | Prepare the statement. Some databases has no feature of preparing
   -- statements (PostgreSQL can just prepare named statements), so each driver
   -- behaves it's own way.
-  prepare :: conn -> String -> SqlResult (ConnStatement conn)
+  prepare :: conn -> TL.Text -> SqlResult (ConnStatement conn)
 
   -- | Clone the database connection. Return new connection with the same
   -- settings
