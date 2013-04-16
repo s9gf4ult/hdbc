@@ -14,18 +14,12 @@ Written by John Goerzen, jgoerzen\@complete.org
 
 module Database.HDBC 
        (
-         module Database.HDBC.Connection
-       , module Database.HDBC.Statement
-       , module Database.HDBC.SqlValue
-       , module Database.HDBC.Utils
-       , module Database.HDBC.SqlError
+         module Database.HDBC.SqlValue
+       , module Database.HDBC.Types
        ) where
   
-import Database.HDBC.Connection
-import Database.HDBC.Statement
 import Database.HDBC.SqlValue
-import Database.HDBC.Utils
-import Database.HDBC.SqlError
+import Database.HDBC.Types
 
 {- $introduction
 

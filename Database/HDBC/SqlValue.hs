@@ -15,8 +15,12 @@
 
 module Database.HDBC.SqlValue
     (
-     -- * SQL value marshalling
-     SqlValue(..)
+      -- * Convertion functions
+      toSql
+    , safeFromSql
+    , fromSql
+      -- * SQL value marshalling
+    , SqlValue(..)
     )
 
 where
@@ -37,6 +41,25 @@ quickError :: (Typeable a, Convertible SqlValue a) => SqlValue -> ConvertResult 
 quickError sv = convError "incompatible types" sv
 
 
+{- | Convert a value to an 'SqlValue'.  This function is simply
+a restricted-type wrapper around 'convert'.  See extended notes on 'SqlValue'. -}
+toSql :: Convertible a SqlValue => a -> SqlValue
+toSql = convert
+
+{- | Conversions to and from 'SqlValue's and standard Haskell types.
+
+This function converts from an 'SqlValue' to a Haskell value.  Many people will use the simpler
+   'fromSql' instead.  This function is simply a restricted-type wrapper around
+   'safeConvert'. -}
+safeFromSql :: Convertible SqlValue a => SqlValue -> ConvertResult a
+safeFromSql = safeConvert
+
+{- | Convert from an 'SqlValue' to a Haskell value.  Any problem is indicated by
+   calling 'error'.  This function is simply a restricted-type wrapper around
+   'convert'.  See extended notes on 'SqlValue'. -}
+fromSql :: Convertible SqlValue a => SqlValue -> a
+fromSql = convert
+                
 
 {- | 'SqlValue' is the main type for expressing Haskell values to SQL databases.
 

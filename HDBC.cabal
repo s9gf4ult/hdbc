@@ -32,10 +32,8 @@ library
                , old-locale
                , convertible >= 1.0.10.0
                , text
-               , utf8-string
                , Decimal >= 0.2.1
                , uuid >= 1.0.0
-               , either
 
   -- Hack for cabal-install weirdness.  cabal-install forces base 3,
   -- though it works fine for Setup.lhs manually.  Fix.
@@ -45,12 +43,9 @@ library
   GHC-Options: -O2 -Wall -fno-warn-orphans
 
   Exposed-Modules: Database.HDBC
-                 , Database.HDBC.Connection
                  , Database.HDBC.DriverUtils
-                 , Database.HDBC.Statement
                  , Database.HDBC.SqlValue
-                 , Database.HDBC.SqlError
-                 , Database.HDBC.Utils
+                 , Database.HDBC.Types
                  
 Test-Suite sqlvalues
   Type:             exitcode-stdio-1.0

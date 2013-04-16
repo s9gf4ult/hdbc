@@ -27,7 +27,7 @@ where
 import Control.Concurrent.MVar
 import System.Mem.Weak
 import Control.Monad
-import Database.HDBC.Statement
+import Database.HDBC.Types (Statement(..))
 
 -- | List of weak pointers to childs with concurrent access
 type ChildList stmt = MVar [Weak stmt]
