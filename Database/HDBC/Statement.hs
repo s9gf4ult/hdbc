@@ -11,7 +11,7 @@ module Database.HDBC.Statement
        )  where
 
 import Database.HDBC.SqlValue (SqlValue)
-import Database.HDBC.SqlError
+-- import Database.HDBC.SqlError
 
 import Data.Typeable
 
@@ -82,6 +82,7 @@ instance Statement StmtWrapper where
   statementStatus (StmtWrapper stmt) = statementStatus stmt
   affectedRows (StmtWrapper stmt) = affectedRows stmt
   finish (StmtWrapper stmt) = finish stmt
+  reset (StmtWrapper stmt) = reset stmt
   fetchRow (StmtWrapper stmt) = fetchRow stmt
   getColumnNames (StmtWrapper stmt) = getColumnNames stmt
   originalQuery (StmtWrapper stmt) = originalQuery stmt

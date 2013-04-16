@@ -28,7 +28,6 @@ import Control.Concurrent.MVar
 import System.Mem.Weak
 import Control.Monad
 import Database.HDBC.Statement
-import Database.HDBC.Utils (throwSqlError)
 
 -- | List of weak pointers to childs with concurrent access
 type ChildList stmt = MVar [Weak stmt]
@@ -52,7 +51,7 @@ closeAllChildren mcl = modifyMVar_ mcl $ \ls -> do
               do c <- deRefWeak child
                  case c of
                    Nothing -> return ()
-                   Just x -> throwSqlError $ finish x
+                   Just x -> finish x
 
 {- | Adds a new child to the existing list.  Also takes care of registering
 a finalizer for it, to remove it from the list when possible. -}

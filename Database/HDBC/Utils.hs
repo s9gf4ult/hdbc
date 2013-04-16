@@ -3,6 +3,7 @@
   , TypeFamilies
   , DeriveDataTypeable
   , FlexibleContexts
+  , ScopedTypeVariables
  #-}
 
 {- |
@@ -40,15 +41,12 @@ module Database.HDBC.Utils
        ) where
 import Prelude hiding (catch)
 
-import Control.Monad.Trans.Either (EitherT (..))
-
 import qualified Data.Text.Lazy as TL
   
 import Database.HDBC.Connection
 import Database.HDBC.Statement
 import Database.HDBC.SqlValue
-import Database.HDBC.SqlError
-import Control.Exception (bracket, catchJust, onException, catch, throw, SomeException(..))
+import Control.Exception (bracket, try, throwIO, catch, SomeException(..))
 import Data.Convertible
 
 -- throwSqlError :: IO a -> IO a
@@ -103,17 +101,14 @@ on this behavior is solicited.
 -}
 withTransaction :: Connection conn => conn -> (conn -> IO a) -> IO a
 withTransaction conn func = do
-  r <- onException (func conn) doRollback
-  commit conn
-  return r
-  where
-    doRollback :: IO ()
-    doRollback = 
-              -- Discard any exception from (rollback conn) so original
-              -- exception can be re-raised
-      catch (rollback conn) doRollbackHandler
-    doRollbackHandler :: SomeException -> IO ()
-    doRollbackHandler _ = return ()
+  r <- try (func conn)
+  case r of
+    Right x -> do
+      commit conn
+      return x
+    Left (e :: SomeException) -> do
+      catch  (rollback conn) (\(_ :: SomeException) -> return ())
+      throwIO e
 
 {-| Create statement and execute monadic action using 
 it. Safely finalize Statement after action is done.
@@ -127,27 +122,5 @@ withStatement conn query = bracket
                            (prepare conn query)
                            finish
 
--- sqlBracket :: (IO a) -> (a -> IO b) -> (a -> IO c) -> IO c
--- sqlBracket aloc dealoc action = EitherT $ bracket ioAlloc ioDealloc ioAction
---   where
---     ioAlloc = runEitherT aloc
---     ioDealloc = \a -> runEitherT $ (EitherT . return $ a) >>= dealoc
---     ioAction = \a -> runEitherT $ (EitherT . return $ a) >>= action
-
-{-| Run query and safely finalize statement after that
--}
-run :: (Connection conn) => conn -> TL.Text -> [SqlValue] -> IO ()
-run conn query values = withStatement conn query $
-                        \s -> execute s values
 
   
-{-| Run raw query without parameters and safely finalize
-statement
--}
-runRaw :: (Connection conn) => conn -> TL.Text -> IO ()
-runRaw conn query = withStatement conn query executeRaw
-  
-{-| run executeMany and safely finalize statement -}
-runMany :: (Connection conn) => conn -> TL.Text -> [[SqlValue]] -> IO ()
-runMany conn query values = withStatement conn query $
-                            \s -> executeMany s values

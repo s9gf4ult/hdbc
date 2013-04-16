@@ -21,10 +21,8 @@ module Database.HDBC.SqlValue
 
 where
 import Data.Dynamic
-import qualified Data.ByteString.UTF8 as BUTF8
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BSL
-import Data.Char(toUpper)
 import Data.Word
 import Data.Int
 import Data.Decimal
