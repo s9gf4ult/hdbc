@@ -51,7 +51,7 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   
   -- | Disconnection from the database, every opened statement must be finished
   -- after this method executed. 
-  disconnect :: conn -> SqlResult ()
+  disconnect :: conn -> IO ()
 
   -- | Explicitly start the transaction. Without starting the transaction you
   -- can not commit or rollback it. HDBC does not check if transaction started
@@ -59,38 +59,38 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   --
   -- This is not recomended to use 'start' by hands, use
   -- 'Database.HDBC.Utils.withTransaction' instead
-  start :: conn -> SqlResult ()
+  start :: conn -> IO ()
 
   -- | Explicitly commit started transaction. You must 'start' the transaction
   -- before 'commit'
   --
   -- This is not recomended to use 'commit' by hands, use
   -- 'Database.HDBC.Utils.withTransaction' instead
-  commit :: conn -> SqlResult ()
+  commit :: conn -> IO ()
 
   -- | Rollback the transaction's state. You must 'start' the transaction before
   -- 'rollback'
   --
   -- This is not recomended to use 'rollback' by hands, use
   -- 'Database.HDBC.Utils.withTransaction' instead
-  rollback :: conn -> SqlResult ()
+  rollback :: conn -> IO ()
 
   -- | Check if current connection is in transaction state. Return True if
   -- transaction is started. Each driver implements it with it's own way: some
   -- RDBMS has API to check transaction state (like PostgreSQL), some has no
   -- (like Sqlite3), so this drivers just save some flag 
-  inTransaction :: conn -> SqlResult Bool
+  inTransaction :: conn -> IO Bool
 
-  connStatus :: conn -> SqlResult ConnStatus
+  connStatus :: conn -> IO ConnStatus
 
   -- | Prepare the statement. Some databases has no feature of preparing
   -- statements (PostgreSQL can just prepare named statements), so each driver
   -- behaves it's own way.
-  prepare :: conn -> TL.Text -> SqlResult (ConnStatement conn)
+  prepare :: conn -> TL.Text -> IO (ConnStatement conn)
 
   -- | Clone the database connection. Return new connection with the same
   -- settings
-  clone :: conn -> SqlResult conn
+  clone :: conn -> IO conn
 
   -- | The name of the HDBC driver module for this connection. Ideally would be
   -- the same as the database name portion of the Cabal package name.  For

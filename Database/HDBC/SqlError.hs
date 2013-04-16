@@ -4,7 +4,7 @@
 module Database.HDBC.SqlError
        (
          SqlError(..)
-       , SqlResult
+       -- , SqlResult
        ) where
 
 
@@ -29,4 +29,4 @@ instance Exception SqlError
 -- indicate exception there is no sense in doing fail in haskell layer. We just
 -- return EitherT which is composable and convenient to work with.
                        
-type SqlResult a = EitherT SqlError IO a
+-- type SqlResult a = EitherT SqlError IO a

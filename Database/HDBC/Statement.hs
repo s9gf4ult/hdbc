@@ -28,32 +28,32 @@ class (Typeable stmt) => Statement stmt where
   -- for PostgreSQL which uses placeholders like ''$1''. Application must ensure
   -- that the count of placeholders is equal to count of parameter, it is likely
   -- cause an error if it is not.
-  execute :: stmt -> [SqlValue] -> SqlResult ()
+  execute :: stmt -> [SqlValue] -> IO ()
 
   -- | Execute single query without parameters. Has default implementation
   -- through 'execute'.
-  executeRaw :: stmt -> SqlResult ()
+  executeRaw :: stmt -> IO ()
   executeRaw stmt = execute stmt []
 
   -- | Execute one query many times with a list of paramters. Has default
   -- implementation through 'execute'.
-  executeMany :: stmt -> [[SqlValue]] -> SqlResult ()
+  executeMany :: stmt -> [[SqlValue]] -> IO ()
   executeMany stmt vals = mapM_ (execute stmt) vals
 
   -- | Return the current statement's status.
-  statementStatus :: stmt -> SqlResult StatementStatus
+  statementStatus :: stmt -> IO StatementStatus
 
   -- | Return the count of rows affected by INSERT, UPDATE or DELETE
   -- query. After executing SELECT query it will return 0 every time.
-  affectedRows :: stmt -> SqlResult Integer
+  affectedRows :: stmt -> IO Integer
 
   -- | Finish statement and remove database-specific pointer. No any actions may
   -- be proceeded after closing the statement, excpet 'statementStatus' which
   -- will return 'StatementFinished'.
-  finish :: stmt -> SqlResult ()
+  finish :: stmt -> IO ()
 
   -- | Reset statement to it's initial state.
-  reset :: stmt -> SqlResult ()
+  reset :: stmt -> IO ()
 
   -- | Fetch next row from the executed statement. Return Nothing when there is
   -- no more results acceptable. Each call return next row from the result.
@@ -62,10 +62,10 @@ class (Typeable stmt) => Statement stmt where
   -- 
   -- NOTE: You still need to finish explicitly the statement after receiving
   -- Nothing, unlike with old HDBC interface.
-  fetchRow :: stmt -> SqlResult (Maybe [SqlValue])
+  fetchRow :: stmt -> IO (Maybe [SqlValue])
 
   -- | Return list of column names of the result.
-  getColumnNames :: stmt -> SqlResult [String]
+  getColumnNames :: stmt -> IO [String]
 
   -- | Return the original executed query.
   originalQuery :: stmt -> String

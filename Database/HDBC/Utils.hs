@@ -25,10 +25,9 @@ Written by John Goerzen, jgoerzen\@complete.org
 module Database.HDBC.Utils
        (
          -- * Exception handling
-         throwSqlError
-       , sqlBracket
+         -- sqlBracket
          -- * Convertible helpers
-       , toSql
+         toSql
        , safeFromSql
        , fromSql
          -- * Transaction handling
@@ -52,12 +51,12 @@ import Database.HDBC.SqlError
 import Control.Exception (bracket, catchJust, onException, catch, throw, SomeException(..))
 import Data.Convertible
 
-throwSqlError :: SqlResult a -> IO a
-throwSqlError m = do
-  res <- runEitherT m
-  case res of
-    Right a -> return a
-    Left  e -> throw e
+-- throwSqlError :: IO a -> IO a
+-- throwSqlError m = do
+--   res <- runEitherT m
+--   case res of
+--     Right a -> return a
+--     Left  e -> throw e
     
 {- | Convert a value to an 'SqlValue'.  This function is simply
 a restricted-type wrapper around 'convert'.  See extended notes on 'SqlValue'. -}
@@ -105,14 +104,14 @@ on this behavior is solicited.
 withTransaction :: Connection conn => conn -> (conn -> IO a) -> IO a
 withTransaction conn func = do
   r <- onException (func conn) doRollback
-  throwSqlError $ commit conn
+  commit conn
   return r
   where
     doRollback :: IO ()
     doRollback = 
               -- Discard any exception from (rollback conn) so original
               -- exception can be re-raised
-      catch (throwSqlError $ rollback conn) doRollbackHandler
+      catch (rollback conn) doRollbackHandler
     doRollbackHandler :: SomeException -> IO ()
     doRollbackHandler _ = return ()
 
@@ -120,24 +119,24 @@ withTransaction conn func = do
 it. Safely finalize Statement after action is done.
 -}
 withStatement :: (Connection conn, Statement stmt, stmt ~ (ConnStatement conn))
-                 => conn                 -- ^ Connection
-                 -> TL.Text              -- ^ Query string
-                 -> (stmt -> SqlResult a) -- ^ Action around statement
-                 -> SqlResult a          -- ^ Result of action
-withStatement conn query = sqlBracket
+                 => conn          -- ^ Connection
+                 -> TL.Text       -- ^ Query string
+                 -> (stmt -> IO a) -- ^ Action around statement
+                 -> IO a          -- ^ Result of action
+withStatement conn query = bracket
                            (prepare conn query)
                            finish
 
-sqlBracket :: (SqlResult a) -> (a -> SqlResult b) -> (a -> SqlResult c) -> SqlResult c
-sqlBracket aloc dealoc action = EitherT $ bracket ioAlloc ioDealloc ioAction
-  where
-    ioAlloc = runEitherT aloc
-    ioDealloc = \a -> runEitherT $ (EitherT . return $ a) >>= dealoc
-    ioAction = \a -> runEitherT $ (EitherT . return $ a) >>= action
+-- sqlBracket :: (IO a) -> (a -> IO b) -> (a -> IO c) -> IO c
+-- sqlBracket aloc dealoc action = EitherT $ bracket ioAlloc ioDealloc ioAction
+--   where
+--     ioAlloc = runEitherT aloc
+--     ioDealloc = \a -> runEitherT $ (EitherT . return $ a) >>= dealoc
+--     ioAction = \a -> runEitherT $ (EitherT . return $ a) >>= action
 
 {-| Run query and safely finalize statement after that
 -}
-run :: (Connection conn) => conn -> TL.Text -> [SqlValue] -> SqlResult ()
+run :: (Connection conn) => conn -> TL.Text -> [SqlValue] -> IO ()
 run conn query values = withStatement conn query $
                         \s -> execute s values
 
@@ -145,10 +144,10 @@ run conn query values = withStatement conn query $
 {-| Run raw query without parameters and safely finalize
 statement
 -}
-runRaw :: (Connection conn) => conn -> TL.Text -> SqlResult ()
+runRaw :: (Connection conn) => conn -> TL.Text -> IO ()
 runRaw conn query = withStatement conn query executeRaw
   
 {-| run executeMany and safely finalize statement -}
-runMany :: (Connection conn) => conn -> TL.Text -> [[SqlValue]] -> SqlResult ()
+runMany :: (Connection conn) => conn -> TL.Text -> [[SqlValue]] -> IO ()
 runMany conn query values = withStatement conn query $
                             \s -> executeMany s values
