@@ -37,8 +37,10 @@ instance (Arbitrary i, Integral i) => Arbitrary (DecimalRaw i) where
 
 
 commonChecks :: (Convertible a SqlValue, Convertible SqlValue a, Eq a, Show a) => a -> Property
-commonChecks x = (x ==? (fromSql $ toSql x)) .&&. 
-                 (x ==? (fromSql $ toSql (fromSql $ toSql x :: B.ByteString)))
+commonChecks x = (partialChecks x) .&&. 
+                 (x ==? (fromSql $ toSql (fromSql $ toSql x :: TL.Text)))
+
+partialChecks x = x ==? (fromSql $ toSql x)
 
   
 sqlvalues :: Spec
@@ -46,8 +48,8 @@ sqlvalues = describe "SqlValue should be convertible" $ do
   prop "with string" $ \(s::String) -> commonChecks s
   prop "with text" $ \(t::T.Text) -> commonChecks t
   prop "with lazy text" $ \(t::TL.Text) -> commonChecks t
-  prop "with bytestring" $ \(b::B.ByteString) -> commonChecks b
-  prop "with lazy bytestring" $ \(b::BL.ByteString) -> commonChecks b
+  prop "with bytestring" $ \(b::B.ByteString) -> partialChecks b
+  prop "with lazy bytestring" $ \(b::BL.ByteString) -> partialChecks b
   prop "with int" $ \(i :: Int) -> commonChecks i
   prop "with int32" $ \(i :: Int32) -> commonChecks i
   prop "with int64" $ \(i :: Int64) -> commonChecks i 
