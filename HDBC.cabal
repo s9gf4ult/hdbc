@@ -62,3 +62,20 @@ Test-Suite sqlvalues
                   , time
                   , convertible
                   , Decimal
+
+Test-Suite dummydriver
+  Type:             exitcode-stdio-1.0
+  Main-Is:          dummydriver.hs
+  Hs-Source-Dirs:   testsrc
+  Build-Depends:    base
+                  , QuickCheck
+                  , quickcheck-instances
+                  , quickcheck-assertions
+                  , hspec
+                  , HDBC
+                  , text
+                  , bytestring
+                  , time
+                  , convertible
+                  , Decimal
+                 

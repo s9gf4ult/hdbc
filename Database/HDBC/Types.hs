@@ -4,7 +4,7 @@
   , ExistentialQuantification
   , FlexibleContexts
   , ScopedTypeVariables
- #-}
+  #-}
 
 {- |
    Module     : Database.HDBC.Types
@@ -59,6 +59,7 @@ data ConnStatus = ConnOK           -- ^ Successfully connected
                 | ConnDisconnected -- ^ Successfully disconnected, all
                                    -- statements must be closed at this state
                 | ConnBad          -- ^ Some bad situation
+                  deriving (Typeable, Show, Read, Eq)
 
 -- | Typeclass to abstract the working with connection.                  
 class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
@@ -190,6 +191,7 @@ castConnection (ConnWrapper conn) = cast conn
 data StatementStatus = StatementNew      -- ^ Newly created statement
                      | StatementExecuted -- ^ Expression executed
                      | StatementFinished -- ^ Finished, fetching rows will return 'Nothing'
+                       deriving (Typeable, Show, Read, Eq)
 
                        
 class (Typeable stmt) => Statement stmt where
@@ -236,10 +238,10 @@ class (Typeable stmt) => Statement stmt where
   fetchRow :: stmt -> IO (Maybe [SqlValue])
 
   -- | Return list of column names of the result.
-  getColumnNames :: stmt -> IO [String]
+  getColumnNames :: stmt -> IO [TL.Text]
 
   -- | Return the original executed query.
-  originalQuery :: stmt -> String
+  originalQuery :: stmt -> TL.Text
 
 -- | Wrapper around some specific 'Statement' instance to write
 -- database-independent code
