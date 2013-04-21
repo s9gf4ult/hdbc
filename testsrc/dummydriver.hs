@@ -50,20 +50,35 @@ withOKConnection conn action = do
     ConnOK -> action
     _ -> throwIO $ SqlError 1 $ "Connection has wrong status " ++ show st
 
+withTransactionSupport :: DummyConnection -> IO a -> IO a
+withTransactionSupport conn action = case (dcTransSupport conn) of
+  True -> action
+  False -> throwIO $ SqlError 10 "Transaction is not supported by this connection"
+  
+
 instance Connection DummyConnection where
   type ConnStatement DummyConnection = DummyStatement
   disconnect conn = modifyMVar_ (dcState conn) $ const $ return ConnDisconnected
-  start conn = withOKConnection conn $ modifyMVar_ (dcTrans conn) $ \s -> case s of
+  start conn = withOKConnection conn
+               $ withTransactionSupport conn
+               $ modifyMVar_ (dcTrans conn)
+               $ \s -> case s of
     TIdle -> return TInTransaction
     TInTransaction -> throwIO $ SqlError 2 $ "Connection is already in transaction "
-  commit conn = withOKConnection conn $ modifyMVar_ (dcTrans conn) $ \s -> case s of
+  commit conn = withOKConnection conn
+                $ withTransactionSupport conn
+                $ modifyMVar_ (dcTrans conn)
+                $ \s -> case s of
     TInTransaction -> return TIdle
     TIdle -> throwIO $ SqlError 3 $ "Connection is not in transaction to commit"
-  rollback conn = withOKConnection conn $ modifyMVar_ (dcTrans conn) $ \s -> case s of
+  rollback conn = withOKConnection conn
+                  $ withTransactionSupport conn
+                  $ modifyMVar_ (dcTrans conn)
+                  $ \s -> case s of
     TInTransaction -> return TIdle
     TIdle -> throwIO $ SqlError 4 $ "Connection is not in transaction to rollback"
-  inTransaction conn = do
-    t <- takeMVar $ dcTrans $ conn
+  inTransaction conn = withTransactionSupport conn $ do
+    t <- takeMVar $ dcTrans conn
     return $ t == TInTransaction
   connStatus = takeMVar . dcState
   prepare conn query = do
@@ -84,11 +99,9 @@ instance Connection DummyConnection where
   proxiedClientVer = const "0"
   dbServerVer = const "0"
   dbTransactionSupport = dcTransSupport
+
   
-
-
 instance Statement DummyStatement where
-  
   execute stmt _ = modifyMVar_ (dsStatus stmt) $ \st -> do
     case st of
       StatementNew -> do
