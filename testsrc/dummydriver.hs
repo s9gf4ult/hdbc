@@ -7,7 +7,9 @@
 
 module Main where
 
--- import Test.HUnit
+import System.Mem
+import System.Mem.Weak
+
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.Hspec.Expectations
@@ -18,6 +20,7 @@ import Control.Exception
 import Control.Monad
 import Data.Functor
 import Data.Typeable
+import Data.Maybe
 
 import qualified Data.Text.Lazy as TL
 
@@ -64,7 +67,10 @@ withTransactionSupport conn action = case (dcTransSupport conn) of
 
 instance Connection DummyConnection where
   type ConnStatement DummyConnection = DummyStatement
-  disconnect conn = modifyMVar_ (dcState conn) $ const $ return ConnDisconnected
+  disconnect conn = modifyMVar_ (dcState conn) $ \_ -> do
+    closeAllChildren $ dcChilds conn
+    return ConnDisconnected
+  
   start conn = withOKConnection conn
                $ withTransactionSupport conn
                $ modifyMVar_ (dcTrans conn)
@@ -84,15 +90,15 @@ instance Connection DummyConnection where
     TInTransaction -> return TIdle
     TIdle -> throwIO $ SqlError 4 $ "Connection is not in transaction to rollback"
   inTransaction conn = withTransactionSupport conn $ do
-    t <- takeMVar $ dcTrans conn
+    t <- readMVar $ dcTrans conn
     return $ t == TInTransaction
-  connStatus = takeMVar . dcState
+  connStatus = readMVar . dcState
   prepare conn query = do
     st <- DummyStatement
           <$> return conn
           <*> return query
           <*> newMVar StatementNew
-    -- addChild (dcChilds conn) st
+    addChild (dcChilds conn) st
     return st
   clone conn = DummyConnection
                <$> (newMVar ConnOK)
@@ -116,7 +122,7 @@ instance Statement DummyStatement where
           else return StatementExecuted
       _ -> throwIO $ SqlError 6 $ "Statement has wrong status to execute query " ++ show st
     
-  statementStatus = takeMVar . dsStatus
+  statementStatus = readMVar . dsStatus
 
   affectedRows = const $ return 0
   finish stmt = modifyMVar_ (dsStatus stmt) $ const $ return StatementFinished
@@ -132,17 +138,53 @@ test1 = do
   (withTransaction c $ do
       intr <- inTransaction c
       intr `shouldBe` True
-      stmt <- prepare c "throw"
-      print "fuck"
-      execute stmt []
+      stmt <- prepare c "throw"  -- cause an exception throwing
+      executeRaw stmt
     ) `shouldThrow` (\(_ :: SqlError) -> True)
   intr <- inTransaction c
-  intr `shouldBe` False 
+  intr `shouldBe` False         -- after rollback
 
+test2 = do
+  c <- newConnection True
+  intr1 <- inTransaction c
+  intr1 `shouldBe` False
+  withTransaction c $ do
+    stmt <- prepare c "dummy query"
+    executeRaw stmt
+    intr <- inTransaction c
+    intr `shouldBe` True
+  intr <- inTransaction c
+  intr `shouldBe` False         -- after commit
 
+test3 = do
+  c <- newConnection False
+  sub c
+  performGC                     -- after this all refs must be empty
+  p <- readMVar $ dcChilds c
+  prts <- filterM (deRefWeak >=> (return . isJust)) p
+  (length prts) `shouldBe` 0
 
+    where
+      sub c = do
+        st1 <- prepare c "query 1"
+        st2 <- prepare c "query 2"
+        executeRaw st2
+        prts <- readMVar $ dcChilds c
+        (length prts) `shouldBe` 2
+
+test4 = do
+  c <- newConnection False
+  stmt <- prepare c "query 1"
+  disconnect c
+  ss <- statementStatus stmt
+  ss `shouldBe` StatementFinished
+
+test5 = undefined
   
 main :: IO ()
-main = defaultMain [
-  testCase  "Transaction handling" test1
-  ]
+main = defaultMain [ testCase "Transaction exception handling" test1
+                   , testCase "Transaction commiting" test2
+                   , testCase "Child statements" test3
+                   , testCase "Childs closed when disconnect" test4
+                   , testCase "Each connection has it's own childs" test5
+                   ]
