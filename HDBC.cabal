@@ -68,14 +68,13 @@ Test-Suite dummydriver
   Main-Is:          dummydriver.hs
   Hs-Source-Dirs:   testsrc
   Build-Depends:    base
-                  , QuickCheck
-                  , quickcheck-instances
-                  , quickcheck-assertions
-                  , hspec
                   , HDBC
                   , text
                   , bytestring
                   , time
                   , convertible
                   , Decimal
+                  , test-framework == 0.7.*
+                  , test-framework-hunit
+                  , hspec-expectations
                  

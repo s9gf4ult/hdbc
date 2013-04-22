@@ -2,9 +2,15 @@
   DeriveDataTypeable
 , TypeFamilies
 , OverloadedStrings
+, ScopedTypeVariables
   #-}
 
 module Main where
+
+-- import Test.HUnit
+import Test.Framework
+import Test.Framework.Providers.HUnit
+import Test.Hspec.Expectations
 
 import Control.Applicative
 import Control.Concurrent.MVar
@@ -86,12 +92,12 @@ instance Connection DummyConnection where
           <$> return conn
           <*> return query
           <*> newMVar StatementNew
-    addChild (dcChilds conn) st
+    -- addChild (dcChilds conn) st
     return st
   clone conn = DummyConnection
-               <$> (takeMVar >=> newMVar $ dcState conn)
-               <*> (takeMVar >=> newMVar $ dcTrans conn)
-               <*> (takeMVar >=> newMVar $ dcChilds conn)
+               <$> (newMVar ConnOK)
+               <*> (newMVar TIdle)
+               <*> newChildList
                <*> (return $ dcTransSupport conn)
   hdbcDriverName = const "DummyDriver"
   hdbcClientVer = const "0"
@@ -121,10 +127,22 @@ instance Statement DummyStatement where
 
 
 
-
+test1 = do
+  c <- newConnection True
+  (withTransaction c $ do
+      intr <- inTransaction c
+      intr `shouldBe` True
+      stmt <- prepare c "throw"
+      print "fuck"
+      execute stmt []
+    ) `shouldThrow` (\(_ :: SqlError) -> True)
+  intr <- inTransaction c
+  intr `shouldBe` False 
 
 
 
   
 main :: IO ()
-main = return ()
+main = defaultMain [
+  testCase  "Transaction handling" test1
+  ]

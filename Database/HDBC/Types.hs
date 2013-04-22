@@ -285,9 +285,10 @@ reported since the original exception will be propogated back.  (You'd probably
 like to know about the root cause for all of this anyway.)  Feedback
 on this behavior is solicited.
 -}
-withTransaction :: Connection conn => conn -> (conn -> IO a) -> IO a
+withTransaction :: Connection conn => conn -> IO a -> IO a
 withTransaction conn func = do
-  r <- try (func conn)
+  start conn
+  r <- try func
   case r of
     Right x -> do
       commit conn
