@@ -179,7 +179,24 @@ test4 = do
   ss <- statementStatus stmt
   ss `shouldBe` StatementFinished
 
-test5 = undefined
+test5 = do
+  c <- newConnection True
+  c2 <- clone c
+  st1 <- prepare c "query"
+  stt <- statementStatus st1
+  stt `shouldBe` StatementNew
+  st2 <- prepare c2 "query"
+  stt2 <- statementStatus st2
+  stt2 `shouldBe` StatementNew
+  disconnect c
+  stt <- statementStatus st1
+  stt `shouldBe` StatementFinished
+  stt2 <- statementStatus st2
+  stt2 `shouldBe` StatementNew
+  disconnect c2
+  stt2 <- statementStatus st2
+  stt2 `shouldBe` StatementFinished
+  
   
 main :: IO ()
 main = defaultMain [ testCase "Transaction exception handling" test1

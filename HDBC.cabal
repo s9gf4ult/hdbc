@@ -55,7 +55,7 @@ Test-Suite sqlvalues
                   , QuickCheck
                   , quickcheck-instances
                   , quickcheck-assertions
-                  , test-frmawork 
+                  , test-framework
                   , test-framework-quickcheck2
                   , HDBC
                   , text
