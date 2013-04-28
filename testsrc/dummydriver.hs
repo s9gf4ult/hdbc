@@ -71,7 +71,7 @@ instance Connection DummyConnection where
     closeAllChildren $ dcChilds conn
     return ConnDisconnected
   
-  start conn = withOKConnection conn
+  begin conn = withOKConnection conn
                $ withTransactionSupport conn
                $ modifyMVar_ (dcTrans conn)
                $ \s -> case s of

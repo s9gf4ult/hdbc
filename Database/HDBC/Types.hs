@@ -46,16 +46,22 @@ import Data.Typeable
 
 
 -- | Error throwing by driver when database operation fails
-data SqlError = SqlError { seNativeError :: Int -- ^ Low level database-specific error code
-                         , seErrorMsg :: String -- ^ Error description from the database driver
-                         }
-              deriving (Eq, Show, Read, Typeable)
+data SqlError =
+  -- | Internal database error
+  SqlError { seNativeError :: Int -- ^ Low level database-specific error code
+           , seErrorMsg :: String -- ^ Error description from the database client library
+           }
+  -- | Driver-specific operational error
+  | SqlDriverError { seErrorMsg :: String -- ^ Error description
+                 }
+  deriving (Eq, Show, Read, Typeable)
 
 instance Exception SqlError
 
 
 -- | Connection status
 data ConnStatus = ConnOK           -- ^ Successfully connected
+                | ConnEstablishing -- ^ Connecting is in progress
                 | ConnDisconnected -- ^ Successfully disconnected, all
                                    -- statements must be closed at this state
                 | ConnBad          -- ^ Some bad situation
@@ -77,7 +83,7 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   --
   -- This is not recomended to use 'start' by hands, use
   -- 'Database.HDBC.Utils.withTransaction' instead
-  start :: conn -> IO ()
+  begin :: conn -> IO ()
 
   -- | Explicitly commit started transaction. You must 'start' the transaction
   -- before 'commit'
@@ -165,7 +171,7 @@ instance Connection ConnWrapper where
   type ConnStatement ConnWrapper = StmtWrapper
 
   disconnect (ConnWrapper conn) = disconnect conn
-  start (ConnWrapper conn) = start conn
+  begin (ConnWrapper conn) = begin conn
   commit (ConnWrapper conn) = commit conn
   rollback (ConnWrapper conn) = rollback conn
   inTransaction (ConnWrapper conn) = inTransaction conn
@@ -290,7 +296,7 @@ on this behavior is solicited.
 -}
 withTransaction :: Connection conn => conn -> IO a -> IO a
 withTransaction conn func = do
-  start conn
+  begin conn
   r <- try func
   case r of
     Right x -> do

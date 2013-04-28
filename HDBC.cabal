@@ -6,7 +6,7 @@ Author: John Goerzen
 homepage: https://github.com/hdbc/hdbc
 Copyright: Copyright (c) 2005-2011 John Goerzen
 license-file: LICENSE
-extra-source-files: LICENSE, Makefile, README.md
+extra-source-files: LICENSE, README.md
 Category: Database
 synopsis: Haskell Database Connectivity
 Description: HDBC provides an abstraction layer between Haskell programs and SQL
