@@ -171,6 +171,9 @@ instance Connection ConnWrapper where
   inTransaction (ConnWrapper conn) = inTransaction conn
   connStatus (ConnWrapper conn) = connStatus conn
   prepare (ConnWrapper conn) str = (prepare conn str) >>= (\s -> return $ StmtWrapper s)
+  run (ConnWrapper conn) = run conn
+  runRaw (ConnWrapper conn) = runRaw conn
+  runMany (ConnWrapper conn) = runMany conn
   clone (ConnWrapper conn) = (clone conn) >>= (\c -> return $ ConnWrapper c)
   hdbcDriverName (ConnWrapper conn) = hdbcDriverName conn
   hdbcClientVer (ConnWrapper conn) = hdbcClientVer conn

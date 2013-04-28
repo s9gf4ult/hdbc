@@ -40,7 +40,7 @@ library
   if impl(ghc >= 6.9)
      build-depends: base >= 4
 
-  GHC-Options: -O2 -Wall -fno-warn-orphans
+  GHC-Options: -Wall -fno-warn-orphans
 
   Exposed-Modules: Database.HDBC
                  , Database.HDBC.DriverUtils
