@@ -106,10 +106,6 @@ instance Connection DummyConnection where
                <*> newChildList
                <*> (return $ dcTransSupport conn)
   hdbcDriverName = const "DummyDriver"
-  hdbcClientVer = const "0"
-  proxiedClientName = const "DummyDriver"
-  proxiedClientVer = const "0"
-  dbServerVer = const "0"
   dbTransactionSupport = dcTransSupport
 
   

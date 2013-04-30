@@ -137,25 +137,6 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   -- tightly to HDBC
   hdbcDriverName :: conn -> String
 
-  -- | The version of the C (or whatever) client library that the HDBC driver
-  -- module is bound to.  The meaning of this is driver-specific.  For an ODBC
-  -- or similar proxying driver, this should be the version of the ODBC library,
-  -- not the eventual DB client driver.
-  hdbcClientVer :: conn -> String
-
-  -- | In the case of a system such as ODBC, the name of the database
-  -- client\/server in use, if available. For others, identical to
-  -- 'hdbcDriverName'.
-  proxiedClientName :: conn -> String
-
-  -- | In the case of a system such as ODBC, the version of the database client
-  -- in use, if available.  For others, identical to 'hdbcClientVer'. This is
-  -- the next layer out past the HDBC driver.
-  proxiedClientVer :: conn -> String
-
-  -- | The version of the database server, if available.
-  dbServerVer :: conn -> String
-
   -- | Whether or not the current database supports transactions. If False, then
   -- 'commit' and 'rollback' should be expected to raise errors.
   dbTransactionSupport :: conn -> Bool
@@ -182,10 +163,6 @@ instance Connection ConnWrapper where
   runMany (ConnWrapper conn) = runMany conn
   clone (ConnWrapper conn) = (clone conn) >>= (\c -> return $ ConnWrapper c)
   hdbcDriverName (ConnWrapper conn) = hdbcDriverName conn
-  hdbcClientVer (ConnWrapper conn) = hdbcClientVer conn
-  proxiedClientName (ConnWrapper conn) = proxiedClientName conn
-  proxiedClientVer (ConnWrapper conn) = proxiedClientVer conn
-  dbServerVer (ConnWrapper conn) = dbServerVer conn
   dbTransactionSupport (ConnWrapper conn) = dbTransactionSupport conn
 
 -- | Cast wrapped connection to the specific connection type using 'cast' of
