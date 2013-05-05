@@ -57,12 +57,12 @@ withOKConnection conn action = do
   st <- connStatus conn
   case st of
     ConnOK -> action
-    _ -> throwIO $ SqlError 1 $ "Connection has wrong status " ++ show st
+    _ -> throwIO $ SqlError "1" $ "Connection has wrong status " ++ show st
 
 withTransactionSupport :: DummyConnection -> IO a -> IO a
 withTransactionSupport conn action = case (dcTransSupport conn) of
   True -> action
-  False -> throwIO $ SqlError 10 "Transaction is not supported by this connection"
+  False -> throwIO $ SqlError "10" "Transaction is not supported by this connection"
   
 
 instance Connection DummyConnection where
@@ -76,19 +76,19 @@ instance Connection DummyConnection where
                $ modifyMVar_ (dcTrans conn)
                $ \s -> case s of
     TIdle -> return TInTransaction
-    TInTransaction -> throwIO $ SqlError 2 $ "Connection is already in transaction "
+    TInTransaction -> throwIO $ SqlError "2" $ "Connection is already in transaction "
   commit conn = withOKConnection conn
                 $ withTransactionSupport conn
                 $ modifyMVar_ (dcTrans conn)
                 $ \s -> case s of
     TInTransaction -> return TIdle
-    TIdle -> throwIO $ SqlError 3 $ "Connection is not in transaction to commit"
+    TIdle -> throwIO $ SqlError "3" $ "Connection is not in transaction to commit"
   rollback conn = withOKConnection conn
                   $ withTransactionSupport conn
                   $ modifyMVar_ (dcTrans conn)
                   $ \s -> case s of
     TInTransaction -> return TIdle
-    TIdle -> throwIO $ SqlError 4 $ "Connection is not in transaction to rollback"
+    TIdle -> throwIO $ SqlError "4" $ "Connection is not in transaction to rollback"
   inTransaction conn = withTransactionSupport conn $ do
     t <- readMVar $ dcTrans conn
     return $ t == TInTransaction
@@ -114,9 +114,9 @@ instance Statement DummyStatement where
     case st of
       StatementNew -> do
         if (originalQuery stmt) == "throw"
-          then throwIO $ SqlError 5 "Throwed query exception"
+          then throwIO $ SqlError "5" "Throwed query exception"
           else return StatementExecuted
-      _ -> throwIO $ SqlError 6 $ "Statement has wrong status to execute query " ++ show st
+      _ -> throwIO $ SqlError "6" $ "Statement has wrong status to execute query " ++ show st
     
   statementStatus = readMVar . dsStatus
 

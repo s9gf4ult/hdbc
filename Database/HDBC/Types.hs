@@ -48,7 +48,7 @@ import Data.Typeable
 -- | Error throwing by driver when database operation fails
 data SqlError =
   -- | Internal database error
-  SqlError { seNativeError :: Int -- ^ Low level database-specific error code
+  SqlError { seNativeError :: String -- ^ Low level database-specific error code
            , seErrorMsg :: String -- ^ Error description from the database client library
            }
   -- | Driver-specific operational error
@@ -61,10 +61,9 @@ instance Exception SqlError
 
 -- | Connection status
 data ConnStatus = ConnOK           -- ^ Successfully connected
-                | ConnEstablishing -- ^ Connecting is in progress
                 | ConnDisconnected -- ^ Successfully disconnected, all
                                    -- statements must be closed at this state
-                | ConnBad          -- ^ Some bad situation
+                | ConnBad          -- ^ Connection is in some bad state
                   deriving (Typeable, Show, Read, Eq)
 
 -- | Typeclass to abstract the working with connection.                  
@@ -176,7 +175,8 @@ castConnection (ConnWrapper conn) = cast conn
 -- | Statement's status returning by function 'statementStatus'.
 data StatementStatus = StatementNew      -- ^ Newly created statement
                      | StatementExecuted -- ^ Expression executed
-                     | StatementFinished -- ^ Finished, fetching rows will return 'Nothing'
+                     | StatementFetched  -- ^ Fetching is done, no more rows can be queried
+                     | StatementFinished -- ^ Finished, no more actions with this statement
                        deriving (Typeable, Show, Read, Eq)
 
                        
@@ -204,6 +204,7 @@ class (Typeable stmt) => Statement stmt where
 
   -- | Return the count of rows affected by INSERT, UPDATE or DELETE
   -- query. After executing SELECT query it will return 0 every time.
+  -- It is also undefined result after executing 'executeMany'
   affectedRows :: stmt -> IO Integer
 
   -- | Finish statement and remove database-specific pointer. No any actions may
@@ -226,6 +227,10 @@ class (Typeable stmt) => Statement stmt where
   -- | Return list of column names of the result.
   getColumnNames :: stmt -> IO [TL.Text]
 
+  -- | Return the number of columns representing the result
+  getColumnsCount :: stmt -> IO Int
+  getColumnsCount stmt = fmap length $ getColumnNames stmt
+
   -- | Return the original executed query.
   originalQuery :: stmt -> TL.Text
 
@@ -244,6 +249,7 @@ instance Statement StmtWrapper where
   reset (StmtWrapper stmt) = reset stmt
   fetchRow (StmtWrapper stmt) = fetchRow stmt
   getColumnNames (StmtWrapper stmt) = getColumnNames stmt
+  getColumnsCount (StmtWrapper stmt) = getColumnsCount stmt
   originalQuery (StmtWrapper stmt) = originalQuery stmt
 
 
