@@ -1,0 +1,106 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>Database.HDBC</title><link href="ocean.css" rel="stylesheet" type="text/css" title="Ocean" /><script src="haddock-util.js" type="text/javascript"></script><script type="text/javascript">//<![CDATA[
+window.onload = function () {pageLoad();setSynopsis("mini_Database-HDBC.html");};
+//]]>
+</script></head><body><div id="package-header"><ul class="links" id="page-menu"><li><a href="index.html">Contents</a></li><li><a href="doc-index.html">Index</a></li></ul><p class="caption">HDBC-3.0.0: Haskell Database Connectivity</p></div><div id="content"><div id="module-header"><table class="info"><tr><th>Portability</th><td>portable</td></tr><tr><th>Stability</th><td>provisional</td></tr><tr><th>Maintainer</th><td>John Goerzen &lt;jgoerzen@complete.org&gt;</td></tr><tr><th>Safe Haskell</th><td>None</td></tr></table><p class="caption">Database.HDBC</p></div><div id="table-of-contents"><p class="caption">Contents</p><ul><li><a href="#g:1">Introduction
+</a></li><li><a href="#g:2">Difference between HDBC-2 and HDBC-3.
+</a></li><li><a href="#g:3">Goals of the project
+</a></li><li><a href="#g:4">Not goals of the project
+</a></li><li><a href="#g:5">Differences in SqlValue
+</a></li><li><a href="#g:6">Drivers
+</a></li><li><a href="#g:7">Thread-safety
+</a></li><li><a href="#g:8">Reimported modules
+</a></li></ul></div><div id="description"><p class="caption">Description</p><div class="doc empty">&nbsp;</div></div><div id="synopsis"><p id="control.syn" class="caption expander" onclick="toggleSection('syn')">Synopsis</p><ul id="section.syn" class="hide" onclick="toggleSection('syn')"><li class="src short">module <a href="Database-HDBC-SqlValue.html">Database.HDBC.SqlValue</a></li><li class="src short">module <a href="Database-HDBC-Types.html">Database.HDBC.Types</a></li></ul></div><div id="interface"><h1>Documentation</h1><div class="doc"><p>Welcome to HDBC, the Haskell Database Connectivity library.
+ Written by John Goerzen, jgoerzen@complete.org
+</p></div><h1 id="g:1">Introduction
+</h1><div class="doc"><p>HDBC provides an abstraction layer between Haskell programs and SQL
+ relational databases.  This lets you write database code once, in Haskell,
+ and have it work with any number of backend SQL databases (MySQL, Oracle,
+ PostgreSQL, ODBC-compliant databases, etc.)
+</p></div><h1 id="g:2">Difference between HDBC-2 and HDBC-3.
+</h1><div class="doc"><p>This is the rewritten HDBC with new features and better design. Here is the
+ difference between HDBC-2 and HDBC-3:
+</p><ul><li> typeclass IConnection renamed to <code><a href="Database-HDBC-Types.html#t:Connection">Connection</a></code> to be more Haskell-specific
+</li><li> removed methods getTables and describeTable because they are not
+    compatible with project's goals.
+</li><li> <code><a href="Database-HDBC-Types.html#t:Statement">Statement</a></code> is not data but typeclass for now
+</li><li> <code><a href="Database-HDBC-Types.html#t:Connection">Connection</a></code> and <code><a href="Database-HDBC-Types.html#t:Statement">Statement</a></code> instances must be <code>Typeable</code> instances as
+    well. <code>Typeable</code> let you to write database-independent code with
+    <code><a href="Database-HDBC-Types.html#t:ConnWrapper">ConnWrapper</a></code> and <code><a href="Database-HDBC-Types.html#t:StmtWrapper">StmtWrapper</a></code> wrappers.
+</li><li> <code><a href="Database-HDBC-Types.html#t:ConnWrapper">ConnWrapper</a></code> and <code><a href="Database-HDBC-Types.html#t:StmtWrapper">StmtWrapper</a></code> wrappers which can be downcasted to
+    specific <code><a href="Database-HDBC-Types.html#t:Connection">Connection</a></code> or <code><a href="Database-HDBC-Types.html#t:Statement">Statement</a></code> instance or used
+    directly. <code><a href="Database-HDBC-Types.html#t:ConnWrapper">ConnWrapper</a></code> and <code><a href="Database-HDBC-Types.html#t:StmtWrapper">StmtWrapper</a></code> are <code><a href="Database-HDBC-Types.html#t:Connection">Connection</a></code> and <code><a href="Database-HDBC-Types.html#t:Statement">Statement</a></code>
+    instances too
+</li><li> <code><a href="Database-HDBC-SqlValue.html#t:SqlValue">SqlValue</a></code> constructors set is reduced.
+</li><li> Removed any lazy IO operations.
+</li></ul></div><h1 id="g:3">Goals of the project
+</h1><div class="doc"><ul><li> Provide common interface to execute queries and send<em>fetch data to</em>from
+ the database.
+</li><li> Provide the type (''SqlValue'') to represent data which can be sent or fetched
+    from the database.
+</li><li> Provide convenient way to convert Haskell-side data to database-side data
+  and vice versa.
+</li><li> Give the most wide set of supported types, such as Decimal (arbitrary
+    precision values), Integer, Date and Time
+</li><li> Authomatic finalization of statements related to connection when
+  connection is closed.
+</li><li> Thread safety.
+</li><li> To be clean, minimalistic, well-tested and correct base for other
+  higher-level packages.
+</li></ul></div><h1 id="g:4">Not goals of the project
+</h1><div class="doc"><ul><li> Database introspection: HDBC must not know how to introspect the
+    database. This problem must be solved with separate package
+    e.g. hdbc-introspect providing the common interface to introspect the
+    schema and drivers hdbc-introspect-postgresql, hdbc-introspect-mysql and
+    so on to provide database-specific implementation of this
+    interface. Current HDBC architecture allows to acces to low-levl
+    connection and statement functions. The mandatory Typeable instance for
+    any Connection and Statement instance allows to downcast any polymorphic
+    type to specific type and do whatever you need.
+</li><li> Implicit transactions: if you want to work in transaction you must use
+    withTransaction function which correctly rollback the transaction on
+    exceptions.
+</li><li> Lazy IO and resource management: to be short Conduit and ResourceT
+</li><li> Any other things not related to query execution.
+</li></ul></div><h1 id="g:5">Differences in SqlValue
+</h1><div class="doc"><p>New <code><a href="Database-HDBC-SqlValue.html#t:SqlValue">SqlValue</a></code> has just the munimum set of posible types which can be stored
+ on database side or fetched from the database.
+</p><ul><li> SqlString is replaced with SqlText which stores lazy text instead of
+    String. String is ineffective in memory and speed.
+</li><li> SqlByteString is renamed to SqlBlob to be more verbal.
+</li><li> SqlWord32 and SqlWord64 is removed because they have the same type on
+    database side as Int. E.g. there is no unsigned integer type in
+    PostgreSql.
+</li><li> SqlChar is removed because this is the same as Text with one character,
+    and there is no special ''one char'' type.
+</li><li> SqlRational is replaced with SqlDecimal because there is no one database
+    which has native Rational support. You can not to save any Rational value
+    to database and get back just the same. Decimal is more proper type to
+    represent database-level arbitrary precision value.
+</li><li> SqlZonedLocalTimeOfDay is removed because there is no native support of
+    this type on database-level except the PostgreSQL. But the documentation
+    says, that this type is deprecated, difficult to use and must not be used
+    in new applications.
+</li><li> SqlZonedTime, SqlPOSIXTime and SqlEpochTime are removed. They has
+    absolutely the same type on database side as SqlUTCTime. You can convert
+    PosixTime to UTCTime and vice versa using the instances from <code>convertible</code>
+    package, so there is no need in this consturctors. No one database has
+    native type storing ZoneInfo directly, every database convert zoned
+    datetime to utc format and apply local server's timezone to convert utc
+    back to zoned datetime when you select this value. So SqlZonedTime is just
+    the same as SqlUTCTime on database side.
+</li><li> SqlZonedTime and SqlDiffTime removed because no wide support of this types on
+    database level. In fact just PostgreSql. But maybe I am wrong.
+</li></ul></div><h1 id="g:6">Drivers
+</h1><div class="doc"><p>Drivers must be implemented using clean and safe bindings. You must not use
+ C-hacks to interact with database client library, this is the binding's goal.
+</p><ul><li> HDBC-postgresql: use postgresql-libpq and postgresql-simple
+    bindings. PostgreSQL use <code>$n</code> (where <code>n</code> is parameter index) placeholder
+    for query parameters, but you can safely use <code>?</code> placeholder like in other
+    databases. HDBC-postgresql replaces <code>?</code> with sequential <code>$n</code> placeholders
+    before passing the query to database. You can also use <code>$n</code> directly but
+    will break portablility.
+</li></ul></div><h1 id="g:7">Thread-safety
+</h1><div class="doc"><p>All HDBC drivers must use thread safe MVars to store data, which can be
+ shared between threads.
+</p></div><h1 id="g:8">Reimported modules
+</h1><div class="top"><p class="src">module <a href="Database-HDBC-SqlValue.html">Database.HDBC.SqlValue</a></p></div><div class="top"><p class="src">module <a href="Database-HDBC-Types.html">Database.HDBC.Types</a></p></div></div></div><div id="footer"><p>Produced by <a href="http://www.haskell.org/haddock/">Haddock</a> version 2.11.1</p></div></body></html>
