@@ -2,13 +2,15 @@
 window.onload = function () {pageLoad();setSynopsis("mini_Database-HDBC.html");};
 //]]>
 </script></head><body><div id="package-header"><ul class="links" id="page-menu"><li><a href="index.html">Contents</a></li><li><a href="doc-index.html">Index</a></li></ul><p class="caption">HDBC-3.0.0: Haskell Database Connectivity</p></div><div id="content"><div id="module-header"><table class="info"><tr><th>Portability</th><td>portable</td></tr><tr><th>Stability</th><td>provisional</td></tr><tr><th>Maintainer</th><td>John Goerzen &lt;jgoerzen@complete.org&gt;</td></tr><tr><th>Safe Haskell</th><td>None</td></tr></table><p class="caption">Database.HDBC</p></div><div id="table-of-contents"><p class="caption">Contents</p><ul><li><a href="#g:1">Introduction
-</a></li><li><a href="#g:2">Difference between HDBC-2 and HDBC-3.
-</a></li><li><a href="#g:3">Goals of the project
-</a></li><li><a href="#g:4">Not goals of the project
-</a></li><li><a href="#g:5">Differences in SqlValue
-</a></li><li><a href="#g:6">Drivers
-</a></li><li><a href="#g:7">Thread-safety
-</a></li><li><a href="#g:8">Reimported modules
+</a></li><li><a href="#g:2">Design notes
+</a></li><li><a href="#g:3">Some kind of roadmap
+</a></li><li><a href="#g:4">Project scope
+</a></li><li><a href="#g:5">Out of scope
+</a></li><li><a href="#g:6">Difference between HDBC-2 and HDBC-3.
+</a><ul><li><a href="#g:7">Differences in SqlValue
+</a></li></ul></li><li><a href="#g:8">Drivers
+</a></li><li><a href="#g:9">Thread-safety
+</a></li><li><a href="#g:10">Reimported modules
 </a></li></ul></div><div id="description"><p class="caption">Description</p><div class="doc empty">&nbsp;</div></div><div id="synopsis"><p id="control.syn" class="caption expander" onclick="toggleSection('syn')">Synopsis</p><ul id="section.syn" class="hide" onclick="toggleSection('syn')"><li class="src short">module <a href="Database-HDBC-SqlValue.html">Database.HDBC.SqlValue</a></li><li class="src short">module <a href="Database-HDBC-Types.html">Database.HDBC.Types</a></li></ul></div><div id="interface"><h1>Documentation</h1><div class="doc"><p>Welcome to HDBC, the Haskell Database Connectivity library.
  Written by John Goerzen, jgoerzen@complete.org
 </p></div><h1 id="g:1">Introduction
@@ -16,7 +18,116 @@ window.onload = function () {pageLoad();setSynopsis("mini_Database-HDBC.html");}
  relational databases.  This lets you write database code once, in Haskell,
  and have it work with any number of backend SQL databases (MySQL, Oracle,
  PostgreSQL, ODBC-compliant databases, etc.)
-</p></div><h1 id="g:2">Difference between HDBC-2 and HDBC-3.
+</p></div><h1 id="g:2">Design notes
+</h1><div class="doc"><p>There is two typeclasses <code><a href="Database-HDBC-Types.html#t:Connection">Connection</a></code> and <code><a href="Database-HDBC-Types.html#t:Statement">Statement</a></code>. Each database driver
+ must provide it's own types (e.g. PostgreConnection and PostgreStatement in
+ HDBC-postgresql driver) and instances for them. Driver can provide additional
+ low-level functions not covered by these typeclasses.
+</p><p>There is also database-independent wrappers <code><a href="Database-HDBC-Types.html#t:StmtWrapper">StmtWrapper</a></code> and <code><a href="Database-HDBC-Types.html#t:ConnWrapper">ConnWrapper</a></code>
+ which are instances of <code><a href="Database-HDBC-Types.html#t:Statement">Statement</a></code> and <code><a href="Database-HDBC-Types.html#t:Connection">Connection</a></code> respectively. These
+ wrappers can hold database-specific type and call it's instance methods to
+ interact with database. You can still use low-level functions provided for
+ wrapped type by casting the wrapper back to the specific type by functions
+ <code><a href="Database-HDBC-Types.html#v:castStatement">castStatement</a></code> and <code><a href="Database-HDBC-Types.html#v:castConnection">castConnection</a></code>. Here is how it's look like:
+</p><pre>
+genericStmtLen :: StmtWrapper -&gt; IO Int
+genericStmtLen stmt = do
+   executeRaw stmt
+   case castStatement stmt of
+     Nothing -&gt; wrapperLen stmt
+     Just pgstmt -&gt; pgLen pgstmt
+
+wrapperLen :: StmtWrapper -&gt; IO Int
+wrapperLen stmt = length &lt;$&gt; fetchAllRows stmt
+
+pgLen :: PostgreStatement -&gt; IO Int
+pgLen = undefined -- assume implementation is provided by driver, the fast
+                  -- PostgreSQL-specific way by ''ntuples'' low-level function. This
+                  -- feature is not included to <code><a href="Database-HDBC-Types.html#t:Statement">Statement</a></code> typeclass because some
+                  -- databases have no such posibility.
+</pre><p>You can see, that <code><a href="Database-HDBC-Types.html#t:StmtWrapper">StmtWrapper</a></code> is still can be converted safely to
+ PostgreStatement, and if you pass PostgreStatement wrapped in StmtWrapper
+ function ''genericStmtLen'' will automatically use fast PostgreSQL
+ implementation. If it could not cast statement to specific type it will use
+ slow implementation based on <code><a href="Database-HDBC-Types.html#t:Statement">Statement</a></code> methods.
+</p><p>There is also <code><a href="Database-HDBC-SqlValue.html#t:SqlValue">SqlValue</a></code> representing value from database's columns. This
+ type has a set of constructors each of them holds value of some type. There
+ is <code><a href="Database-HDBC-SqlValue.html#v:SqlUTCTime">SqlUTCTime</a></code> for saving and fetching <code>UTCTime</code> value from the database,
+ and <code><a href="Database-HDBC-SqlValue.html#v:SqlText">SqlText</a></code> to save and get the text from database fields. You can execute
+ queries like this:
+</p><pre>
+ {-# LANGUAGE
+   OverloadedStrings
+  #-}
+
+module Main where
+
+import Database.HDBC
+import Database.HDBC.PostgreSQL
+import Control.Applicative
+import Data.Time
+import qualified Data.ByteString as B
+import qualified Data.Text.Lazy as TL
+
+insertTuples :: (Connection conn) =&gt; [(Int, TL.Text, UTCTime, B.ByteString)] -&gt; conn -&gt; IO ()
+insertTuples x conn = runMany conn
+                      &quot;insert into tupletbl (ifield, tfield, dtfield, bsfield) values (?,?,?,?)&quot;
+                      $ map ((a, b, c, d) -&gt; [ toSql a , toSql b , toSql c , toSql d]) x
+</pre><p>Note, that you can still safely use ''?'' parameter placeholders inside the
+ query even with PostgreSQL, which use ''$1'' like placeholders.
+</p><p>There is also <code><a href="Database-HDBC-Types.html#t:Query">Query</a></code> type which is type-safe newtype wrapper around simple
+ lazy Text. You can write it literal, using ''-XOverloadedStrings'' extension.
+</p><p>We do not use String except inside <code><a href="Database-HDBC-Types.html#t:SqlError">SqlError</a></code>, not <code><a href="Database-HDBC-Types.html#t:Query">Query</a></code> nor <code><a href="Database-HDBC-SqlValue.html#v:SqlText">SqlText</a></code> does
+ not use String inside.
+</p></div><h1 id="g:3">Some kind of roadmap
+</h1><div class="doc"><ul><li> Finish other hdbc drivers, like mysql and sqlite
+</li><li> Unify the testing and benchmarking with one package.
+</li><li> Create package hdbc-introspect with common interface to introspect and
+ change the schema. Also it will be necessary to create packages
+ hdbc-introspect-postgresql, hdbc-introspect-mysql and so on for each database
+ using specific methods to introspect and change the schema. This is the base
+ package for doing migrations like in Ruby on Rails.
+</li><li> Create hdbc-resourcet and hdbc-conduit to provide convenient and reliable
+ way for finalizing statements and streaming processing the query results.
+</li><li> Port other high-level database interfaces, like ''persistent'' and
+ ''haskelldb''. This will posibly lead to need to patch ''persistent'' and/or
+ ''haskelldb'' to support Decimal for example, or not. This is too earnly to
+ plan this in detail.
+</li></ul></div><h1 id="g:4">Project scope
+</h1><div class="doc"><ul><li> Provide common interface to execute queries and send<em>fetch data to</em>from
+ the database.
+</li><li> Provide the type (''SqlValue'') to represent data which can be sent or fetched
+    from the database.
+</li><li> Provide convenient way to convert Haskell-side data to database-side data
+  and vice versa. This is done with <code>Convertible</code> instances.
+</li><li> Give the most wide set of supported types, such as Decimal (arbitrary
+    precision values), Integer, Date and Time
+</li><li> Safe interface with protection from re-release of resources. There must
+  not be errors, the more segafults, if you try to finish the statement when
+  the connection is already closed.
+</li><li> Thread-safety.
+</li><li> Concurrency. If database's low level client library provides concurrent
+  acces to one connection and/or statement then driver must support it. As
+  well as protect connection/statement from concurrent access if database does
+  not support it.
+</li><li> To be clean, minimalistic, well-tested and correct base for other
+  higher-level packages.
+</li></ul></div><h1 id="g:5">Out of scope
+</h1><div class="doc"><ul><li> Database introspection: HDBC must not know how to introspect the
+    database. This problem must be solved with separate package
+    e.g. hdbc-introspect providing the common interface to introspect the
+    schema and drivers hdbc-introspect-postgresql, hdbc-introspect-mysql and
+    so on to provide database-specific implementation of this
+    interface. Current HDBC architecture allows to acces to low-levl
+    connection and statement functions. The mandatory Typeable instance for
+    any Connection and Statement instance allows to downcast any polymorphic
+    type to specific type and do whatever you need.
+</li><li> Implicit transactions: if you want to work in transaction you must use
+    withTransaction function which correctly rollback the transaction on
+    exceptions.
+</li><li> Lazy IO and resource management: to be short Conduit and ResourceT
+</li><li> Any other things not related to query execution.
+</li></ul></div><h1 id="g:6">Difference between HDBC-2 and HDBC-3.
 </h1><div class="doc"><p>This is the rewritten HDBC with new features and better design. Here is the
  difference between HDBC-2 and HDBC-3:
 </p><ul><li> typeclass IConnection renamed to <code><a href="Database-HDBC-Types.html#t:Connection">Connection</a></code> to be more Haskell-specific
@@ -32,37 +143,8 @@ window.onload = function () {pageLoad();setSynopsis("mini_Database-HDBC.html");}
     instances too
 </li><li> <code><a href="Database-HDBC-SqlValue.html#t:SqlValue">SqlValue</a></code> constructors set is reduced.
 </li><li> Removed any lazy IO operations.
-</li></ul></div><h1 id="g:3">Goals of the project
-</h1><div class="doc"><ul><li> Provide common interface to execute queries and send<em>fetch data to</em>from
- the database.
-</li><li> Provide the type (''SqlValue'') to represent data which can be sent or fetched
-    from the database.
-</li><li> Provide convenient way to convert Haskell-side data to database-side data
-  and vice versa.
-</li><li> Give the most wide set of supported types, such as Decimal (arbitrary
-    precision values), Integer, Date and Time
-</li><li> Authomatic finalization of statements related to connection when
-  connection is closed.
-</li><li> Thread safety.
-</li><li> To be clean, minimalistic, well-tested and correct base for other
-  higher-level packages.
-</li></ul></div><h1 id="g:4">Not goals of the project
-</h1><div class="doc"><ul><li> Database introspection: HDBC must not know how to introspect the
-    database. This problem must be solved with separate package
-    e.g. hdbc-introspect providing the common interface to introspect the
-    schema and drivers hdbc-introspect-postgresql, hdbc-introspect-mysql and
-    so on to provide database-specific implementation of this
-    interface. Current HDBC architecture allows to acces to low-levl
-    connection and statement functions. The mandatory Typeable instance for
-    any Connection and Statement instance allows to downcast any polymorphic
-    type to specific type and do whatever you need.
-</li><li> Implicit transactions: if you want to work in transaction you must use
-    withTransaction function which correctly rollback the transaction on
-    exceptions.
-</li><li> Lazy IO and resource management: to be short Conduit and ResourceT
-</li><li> Any other things not related to query execution.
-</li></ul></div><h1 id="g:5">Differences in SqlValue
-</h1><div class="doc"><p>New <code><a href="Database-HDBC-SqlValue.html#t:SqlValue">SqlValue</a></code> has just the munimum set of posible types which can be stored
+</li></ul></div><h2 id="g:7">Differences in SqlValue
+</h2><div class="doc"><p>New <code><a href="Database-HDBC-SqlValue.html#t:SqlValue">SqlValue</a></code> has just the munimum set of posible types which can be stored
  on database side or fetched from the database.
 </p><ul><li> SqlString is replaced with SqlText which stores lazy text instead of
     String. String is ineffective in memory and speed.
@@ -90,7 +172,9 @@ window.onload = function () {pageLoad();setSynopsis("mini_Database-HDBC.html");}
     the same as SqlUTCTime on database side.
 </li><li> SqlZonedTime and SqlDiffTime removed because no wide support of this types on
     database level. In fact just PostgreSql. But maybe I am wrong.
-</li></ul></div><h1 id="g:6">Drivers
+</li><li> <code><a href="Database-HDBC-SqlValue.html#v:SqlUUID">SqlUUID</a></code> is added because there is many databases supporting UUID
+  natively.
+</li></ul></div><h1 id="g:8">Drivers
 </h1><div class="doc"><p>Drivers must be implemented using clean and safe bindings. You must not use
  C-hacks to interact with database client library, this is the binding's goal.
 </p><ul><li> HDBC-postgresql: use postgresql-libpq and postgresql-simple
@@ -99,8 +183,8 @@ window.onload = function () {pageLoad();setSynopsis("mini_Database-HDBC.html");}
     databases. HDBC-postgresql replaces <code>?</code> with sequential <code>$n</code> placeholders
     before passing the query to database. You can also use <code>$n</code> directly but
     will break portablility.
-</li></ul></div><h1 id="g:7">Thread-safety
+</li></ul></div><h1 id="g:9">Thread-safety
 </h1><div class="doc"><p>All HDBC drivers must use thread safe MVars to store data, which can be
  shared between threads.
-</p></div><h1 id="g:8">Reimported modules
+</p></div><h1 id="g:10">Reimported modules
 </h1><div class="top"><p class="src">module <a href="Database-HDBC-SqlValue.html">Database.HDBC.SqlValue</a></p></div><div class="top"><p class="src">module <a href="Database-HDBC-Types.html">Database.HDBC.Types</a></p></div></div></div><div id="footer"><p>Produced by <a href="http://www.haskell.org/haddock/">Haddock</a> version 2.11.1</p></div></body></html>
