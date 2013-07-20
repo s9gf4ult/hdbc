@@ -60,7 +60,7 @@ data SqlError =
   -- | Driver-specific operational error
   | SqlDriverError { seErrorMsg :: String -- ^ Error description
                    }
-  deriving (Eq, Read, Show, Typeable)
+  deriving (Eq, Show, Typeable)
 
 instance Exception SqlError
 
