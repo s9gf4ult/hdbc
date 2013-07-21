@@ -4,6 +4,10 @@
 
 module Database.HDBC.Parsers
        (
+-- | This module is for driver developers. Here is fast parsers, trying to parse
+-- time and date in the most wide input formats.
+         
+-- * Parsers         
          parseBitField
        , parseIsoZonedTime
        , parseIsoDay
@@ -21,7 +25,10 @@ import qualified Data.Text as T
 
 spaces :: P.Parser ()
 spaces = P.takeWhile (\x -> x == ' ' || x == '\t') >> return ()
-    
+
+
+-- | Parse bit field literal in format ''b'00101011'''. Takes just last 64 bits
+-- of input, other bits are ignored
 parseBitField :: P.Parser Word64
 parseBitField = do
   _ <- P.string "b'"
@@ -127,7 +134,7 @@ parseIsoTimeOfDay = timeparse P.<?> "TimeOfDay parser"
                 , First $ if mm > 59 || hh < 0
                           then Just $ "Minute is " ++ show mm ++ " must be in bounds from 0 to 59"
                           else Nothing
-                , First $ if ss > 59 || ss < 0
+                , First $ if ss > 60 || ss < 0
                           then Just $ "Seconds is " ++ show ss ++ " must be in bounds from 0 to 59"
                           else Nothing
                 ]

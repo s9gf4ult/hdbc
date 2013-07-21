@@ -19,6 +19,7 @@ module Database.HDBC.SqlValue
       ToSql(..)
     , FromSql(..)
     , ConvertError(..)
+    , BitField(..)
       -- * SQL value marshalling
     , SqlValue(..)
     )
@@ -77,8 +78,8 @@ class ToSql a where
 class FromSql a where
   safeFromSql :: SqlValue -> Either ConvertError a
 
--- | Unsafe method, throws 'ConvertError' if convertion failed. Has default
--- implementation.
+  -- | Unsafe method, throws 'ConvertError' if convertion failed. Has default
+  -- implementation.
   fromSql :: SqlValue -> a
   fromSql s = case safeFromSql s of
     Left e -> throw e
@@ -89,10 +90,10 @@ class FromSql a where
 showFail :: [String]  -- ^ List of contexts of parser
             -> String -- ^ Error message
             -> String
-showFail cont msg = "Parser failed in context \""
+showFail cont msg = "Parser failed in context "
                     ++ (show $ intercalate ", " cont)
-                    ++ "\" with message \""
-                    ++ (show msg) ++ "\""
+                    ++ " with message "
+                    ++ (show msg)
 
 
 incompatibleTypes :: (Typeable a, Typeable b) => a -> b -> Either ConvertError c
@@ -289,7 +290,7 @@ instance FromSql Decimal where
   safeFromSql (SqlDecimal d)          = Right d
   safeFromSql (SqlInteger i)          = Right $ fromIntegral i
   safeFromSql (SqlDouble d)           = Right $ realToFrac d
-  safeFromSql (SqlText t)             = tryParse t rational
+  safeFromSql (SqlText t)             = tryParse t $ signed rational
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: Decimal)
   safeFromSql (SqlBool b)             = Right $ if b then 1 else 0
   safeFromSql (SqlBitField bf)        = Right $ fromIntegral bf
@@ -308,7 +309,7 @@ instance FromSql Int where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
   safeFromSql (SqlInteger i)          = convertToBounded i
   safeFromSql (SqlDouble d)           = convertToBounded $ truncate d
-  safeFromSql (SqlText t)             = tryParse t decimal
+  safeFromSql (SqlText t)             = tryParse t $ signed decimal
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: Int)
   safeFromSql (SqlBool b)             = Right $ if b then 1 else 0
   safeFromSql (SqlBitField bf)        = convertToBounded $ toInteger bf
@@ -327,7 +328,7 @@ instance FromSql Int32 where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
   safeFromSql (SqlInteger i)          = convertToBounded i
   safeFromSql (SqlDouble d)           = convertToBounded $ truncate d
-  safeFromSql (SqlText t)             = tryParse t decimal
+  safeFromSql (SqlText t)             = tryParse t $ signed decimal
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: Int32)
   safeFromSql (SqlBool b)             = Right $ if b then 1 else 0
   safeFromSql (SqlBitField bf)        = convertToBounded $ toInteger bf
@@ -346,7 +347,7 @@ instance FromSql Int64 where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
   safeFromSql (SqlInteger i)          = convertToBounded i
   safeFromSql (SqlDouble d)           = convertToBounded $ truncate d
-  safeFromSql (SqlText t)             = tryParse t decimal
+  safeFromSql (SqlText t)             = tryParse t $ signed decimal
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: Int64)
   safeFromSql (SqlBool b)             = Right $ if b then 1 else 0
   safeFromSql (SqlBitField bf)        = convertToBounded $ toInteger bf
@@ -365,7 +366,7 @@ instance FromSql Integer where
   safeFromSql (SqlDecimal d)          = Right $ truncate d
   safeFromSql (SqlInteger i)          = Right i
   safeFromSql (SqlDouble d)           = Right $ truncate d
-  safeFromSql (SqlText t)             = tryParse t decimal
+  safeFromSql (SqlText t)             = tryParse t $ signed decimal
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: Integer)
   safeFromSql (SqlBool b)             = Right $ if b then 1 else 0
   safeFromSql (SqlBitField bf)        = Right $ toInteger bf
@@ -384,7 +385,7 @@ instance FromSql Word32 where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
   safeFromSql (SqlInteger i)          = convertToBounded i
   safeFromSql (SqlDouble d)           = convertToBounded $ truncate d
-  safeFromSql (SqlText t)             = tryParse t decimal
+  safeFromSql (SqlText t)             = tryParse t (decimal <?> "Word32 parser")
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: Word32)
   safeFromSql (SqlBool b)             = Right $ if b then 1 else 0
   safeFromSql (SqlBitField bf)        = convertToBounded $ toInteger bf
@@ -403,7 +404,7 @@ instance FromSql Word64 where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
   safeFromSql (SqlInteger i)          = convertToBounded i
   safeFromSql (SqlDouble d)           = convertToBounded $ truncate d
-  safeFromSql (SqlText t)             = tryParse t decimal
+  safeFromSql (SqlText t)             = tryParse t (decimal <?> "Word64 parser")
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: Word64)
   safeFromSql (SqlBool b)             = Right $ if b then 1 else 0
   safeFromSql (SqlBitField bf)        = Right $ unBitField bf
@@ -422,7 +423,7 @@ instance FromSql Word where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
   safeFromSql (SqlInteger i)          = convertToBounded i
   safeFromSql (SqlDouble d)           = convertToBounded $ truncate d
-  safeFromSql (SqlText t)             = tryParse t decimal
+  safeFromSql (SqlText t)             = tryParse t (decimal <?> "Word parser")
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: Word)
   safeFromSql (SqlBool b)             = Right $ if b then 1 else 0
   safeFromSql (SqlBitField bf)        = convertToBounded $ toInteger bf
@@ -441,7 +442,7 @@ instance FromSql Double where
   safeFromSql (SqlDecimal d)          = Right $ realToFrac d
   safeFromSql (SqlInteger i)          = Right $ fromIntegral i
   safeFromSql (SqlDouble d)           = Right d
-  safeFromSql (SqlText t)             = tryParse t rational
+  safeFromSql (SqlText t)             = tryParse t $ signed double
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: Double)
   safeFromSql (SqlBool b)             = Right $ if b then 1 else 0
   safeFromSql (SqlBitField bf)        = Right $ fromIntegral bf
