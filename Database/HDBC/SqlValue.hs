@@ -3,6 +3,7 @@
   , DeriveDataTypeable
   , FlexibleContexts
   , FlexibleInstances
+  , GeneralizedNewtypeDeriving
   , MultiParamTypeClasses
   , OverloadedStrings
   , ScopedTypeVariables
@@ -24,11 +25,18 @@ module Database.HDBC.SqlValue
 
 where
 
+import Database.HDBC.Formaters
+import Database.HDBC.Parsers
+  
 import Control.Applicative ((<$>))
 import Control.Exception
 import Data.Attoparsec.Text.Lazy
+import Data.Data (Data)
+import Data.Ix (Ix)
+import Data.Bits (Bits)
 import Data.Decimal
 import Data.Int
+import Data.List (intercalate)
 import Data.Time
 import Data.Typeable
 import Data.UUID (UUID, fromString, toString)
@@ -54,6 +62,13 @@ data ConvertError =
 instance Exception ConvertError
 
 
+-- | Auxiliary type to represent bit field outside of SqlValue
+newtype BitField = BitField { unBitField :: Word64 }
+                   deriving (Bounded, Enum, Eq, Integral, Data, Num, Ord, Real, Ix, Typeable, Bits)
+
+instance Show BitField where
+  show = formatBitField . unBitField
+
 -- | All types must convert to SqlValue safely and unambiguously. That's why
 -- there is no ''safeToSql'' method
 class ToSql a where
@@ -78,6 +93,31 @@ showFail cont msg = "Parser failed in context \""
                     ++ (show $ intercalate ", " cont)
                     ++ "\" with message \""
                     ++ (show msg) ++ "\""
+
+
+incompatibleTypes :: (Typeable a, Typeable b) => a -> b -> Either ConvertError c
+incompatibleTypes a b = Left $ IncompatibleTypes (show $ typeOf a) (show $ typeOf b)
+
+-- | create converting from Null error message
+nullConvertError :: (Typeable a) => a -> Either ConvertError b
+nullConvertError a = Left $ ConvertError ("could not convert SqlNull to " ++ (show $ typeOf a))
+
+convertToBounded :: forall b. (Integral b, Typeable b, Bounded b) => Integer -> Either ConvertError b
+convertToBounded a = if a > bmax
+                     then errorval
+                     else if a < bmin
+                          then errorval
+                          else Right $ fromIntegral a
+  where
+    bmin = toInteger (minBound :: b)
+    bmax = toInteger (maxBound :: b)
+    errorval = Left $ ConvertError ("The value " ++ show a ++ " is out of bounds of " ++ (show $ typeOf (undefined :: b)))
+
+tryParse :: TL.Text -> Parser a -> Either ConvertError a
+tryParse t parser = case parse parser t of
+    Fail _ cont desc -> Left $ ConvertError $ showFail cont desc
+    Done _ res       -> Right res
+
 
 {- | 'SqlValue' is the main type for expressing Haskell values to SQL databases.
 
@@ -204,7 +244,7 @@ data SqlValue =
   | SqlBlob B.ByteString
   | SqlBool Bool
     -- | Represent bit field with 64 bits
-  | SqlBitField Word64
+  | SqlBitField BitField
     -- | UUID value http://en.wikipedia.org/wiki/UUID
   | SqlUUID UUID
 
@@ -240,30 +280,6 @@ instance Eq SqlValue where
           (x :: String) <- safeFromSql a
           y <- safeFromSql b
           return $ x == y
-
-
-incompatibleTypes :: (Typeable a, Typeable b) => a -> b -> Either ConvertError c
-incompatibleTypes a b = Left $ IncompatibleTypes (show $ typeOf a) (show $ typeOf b)
-
--- | create converting from Null error message
-nullConvertError :: (Typeable a) => a -> Either ConvertError b
-nullConvertError a = Left $ ConvertError ("could not convert SqlNull to " ++ (show $ typeOf a))
-
-convertToBounded :: forall a b. (Integral b, Typeable b, Bounded b) => Integer -> Either ConvertError b
-convertToBounded a = if a > bmax
-                     then errorval
-                     else if a < bmin
-                          then errorval
-                          else Right $ fromIntegral a
-  where
-    bmin = toInteger (minBound :: b)
-    bmax = toInteger (maxBound :: b)
-    errorval = Left $ ConvertError ("The value " ++ show a ++ " is out of bounds of " ++ (show $ typeOf (undefined :: b)))
-
-tryParse :: TL.Text -> Parser a -> Either ConvertError a
-tryParse t parser = case parse parser t of
-    Fail _ cont desc -> Left $ ConvertError $ showFail cont desc
-    Done _ res       -> Right res
 
 
 instance ToSql Decimal where
@@ -390,7 +406,7 @@ instance FromSql Word64 where
   safeFromSql (SqlText t)             = tryParse t decimal
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: Word64)
   safeFromSql (SqlBool b)             = Right $ if b then 1 else 0
-  safeFromSql (SqlBitField bf)        = Right bf
+  safeFromSql (SqlBitField bf)        = Right $ unBitField bf
   safeFromSql (SqlUUID u)             = incompatibleTypes u (undefined :: Word64)
   safeFromSql (SqlUTCTime ut)         = incompatibleTypes ut (undefined :: Word64)
   safeFromSql (SqlLocalDate ld)       = incompatibleTypes ld (undefined :: Word64)
@@ -436,25 +452,23 @@ instance FromSql Double where
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Double)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Double)
 
-bitFieldLiteral :: Word64 -> String
-bitFieldLiteral = undefined
 
-instance ToSql String where
+instance ToSql [Char] where
   toSql s = SqlText $ TL.pack s
 
-instance FromSql String where
+instance FromSql [Char] where
   safeFromSql (SqlDecimal d)          = Right $ show d
   safeFromSql (SqlInteger i)          = Right $ show i
   safeFromSql (SqlDouble d)           = Right $ show d
   safeFromSql (SqlText t)             = Right $ TL.unpack t
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: String)
   safeFromSql (SqlBool b)             = Right $ if b then "t" else "f"
-  safeFromSql (SqlBitField bf)        = Right $ bitFieldLiteral bf
+  safeFromSql (SqlBitField bf)        = Right $ formatBitField $ unBitField bf
   safeFromSql (SqlUUID u)             = Right $ toString u
-  safeFromSql (SqlUTCTime ut)         = undefined
-  safeFromSql (SqlLocalDate ld)       = undefined
-  safeFromSql (SqlLocalTimeOfDay tod) = undefined
-  safeFromSql (SqlLocalTime lt)       = undefined
+  safeFromSql (SqlUTCTime ut)         = Right $ formatIsoUTCTime ut
+  safeFromSql (SqlLocalDate ld)       = Right $ formatIsoDay ld
+  safeFromSql (SqlLocalTimeOfDay tod) = Right $ formatIsoTimeOfDay tod
+  safeFromSql (SqlLocalTime lt)       = Right $ formatIsoLocalTime lt
   safeFromSql SqlNull                 = nullConvertError (undefined :: String)
 
 
@@ -488,7 +502,7 @@ instance FromSql B.ByteString where
   safeFromSql (SqlText t)             = incompatibleTypes t (undefined :: B.ByteString)
   safeFromSql (SqlBlob b)             = Right b
   safeFromSql (SqlBool b)             = incompatibleTypes b (undefined :: B.ByteString)
-  safeFromSql (SqlBitField bf)        = Left $ ConvertError $ "Can not convert SqlBitField to " ++ (show $ typeOf (undefined :: B.ByteString))
+  safeFromSql (SqlBitField bf)        = incompatibleTypes bf (undefined :: B.ByteString)
   safeFromSql (SqlUUID u)             = incompatibleTypes u (undefined :: B.ByteString)
   safeFromSql (SqlUTCTime ut)         = incompatibleTypes ut (undefined :: B.ByteString)
   safeFromSql (SqlLocalDate ld)       = incompatibleTypes ld (undefined :: B.ByteString)
@@ -507,7 +521,7 @@ instance FromSql BL.ByteString where
   safeFromSql (SqlText t)             = incompatibleTypes t (undefined :: BL.ByteString)
   safeFromSql (SqlBlob b)             = Right $ BL.fromChunks [b]
   safeFromSql (SqlBool b)             = incompatibleTypes b (undefined :: BL.ByteString)
-  safeFromSql (SqlBitField bf)        = Left $ ConvertError $ "Can not convert SqlBitField to " ++ (show $ typeOf (undefined :: BL.ByteString))
+  safeFromSql (SqlBitField bf)        = incompatibleTypes bf (undefined :: BL.ByteString)
   safeFromSql (SqlUUID u)             = incompatibleTypes u (undefined :: BL.ByteString)
   safeFromSql (SqlUTCTime ut)         = incompatibleTypes ut (undefined :: BL.ByteString)
   safeFromSql (SqlLocalDate ld)       = incompatibleTypes ld (undefined :: BL.ByteString)
@@ -542,6 +556,25 @@ instance FromSql Bool where
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Bool)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Bool)
 
+  
+instance ToSql BitField where
+  toSql = SqlBitField
+
+instance FromSql BitField where
+  safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: BitField)
+  safeFromSql (SqlInteger i)          = BitField <$> convertToBounded i
+  safeFromSql (SqlDouble d)           = incompatibleTypes d (undefined :: BitField)
+  safeFromSql (SqlText t)             = BitField <$> tryParse t parseBitField
+  safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: BitField)
+  safeFromSql (SqlBool b)             = Right $ BitField $ if b then 1 else 0
+  safeFromSql (SqlBitField bf)        = Right bf
+  safeFromSql (SqlUUID u)             = incompatibleTypes u (undefined :: BitField)
+  safeFromSql (SqlUTCTime ut)         = incompatibleTypes ut (undefined :: BitField)
+  safeFromSql (SqlLocalDate ld)       = incompatibleTypes ld (undefined :: BitField)
+  safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: BitField)
+  safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: BitField)
+  safeFromSql SqlNull                 = nullConvertError (undefined :: BitField)
+
 
 instance ToSql UUID where
   toSql = SqlUUID
@@ -571,7 +604,7 @@ instance FromSql UTCTime where
   safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: UTCTime)
   safeFromSql (SqlInteger i)          = incompatibleTypes i (undefined :: UTCTime)
   safeFromSql (SqlDouble d)           = incompatibleTypes d (undefined :: UTCTime)
-  safeFromSql (SqlText t)             = undefined
+  safeFromSql (SqlText t)             = zonedTimeToUTC <$> tryParse t parseIsoZonedTime
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: UTCTime)
   safeFromSql (SqlBool b)             = incompatibleTypes b (undefined :: UTCTime)
   safeFromSql (SqlBitField bf)        = incompatibleTypes bf (undefined :: UTCTime)
@@ -590,7 +623,7 @@ instance FromSql Day where
   safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: Day)
   safeFromSql (SqlInteger i)          = incompatibleTypes i (undefined :: Day)
   safeFromSql (SqlDouble d)           = incompatibleTypes d (undefined :: Day)
-  safeFromSql (SqlText t)             = undefined
+  safeFromSql (SqlText t)             = tryParse t parseIsoDay
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: Day)
   safeFromSql (SqlBool b)             = incompatibleTypes b (undefined :: Day)
   safeFromSql (SqlBitField bf)        = incompatibleTypes bf (undefined :: Day)
@@ -609,7 +642,7 @@ instance FromSql TimeOfDay where
   safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: TimeOfDay)
   safeFromSql (SqlInteger i)          = incompatibleTypes i (undefined :: TimeOfDay)
   safeFromSql (SqlDouble d)           = incompatibleTypes d (undefined :: TimeOfDay)
-  safeFromSql (SqlText t)             = undefined
+  safeFromSql (SqlText t)             = tryParse t parseIsoTimeOfDay
   safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: TimeOfDay)
   safeFromSql (SqlBool b)             = incompatibleTypes b (undefined :: TimeOfDay)
   safeFromSql (SqlBitField bf)        = incompatibleTypes bf (undefined :: TimeOfDay)
@@ -619,6 +652,25 @@ instance FromSql TimeOfDay where
   safeFromSql (SqlLocalTimeOfDay tod) = Right $ tod
   safeFromSql (SqlLocalTime lt)       = Right $ localTimeOfDay lt
   safeFromSql SqlNull                 = nullConvertError (undefined :: TimeOfDay)
+
+
+instance ToSql LocalTime where
+  toSql = SqlLocalTime
+
+instance FromSql LocalTime where
+  safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: LocalTime)
+  safeFromSql (SqlInteger i)          = incompatibleTypes i (undefined :: LocalTime)
+  safeFromSql (SqlDouble d)           = incompatibleTypes d (undefined :: LocalTime)
+  safeFromSql (SqlText t)             = tryParse t parseIsoLocalTime
+  safeFromSql (SqlBlob b)             = incompatibleTypes b (undefined :: LocalTime)
+  safeFromSql (SqlBool b)             = incompatibleTypes b (undefined :: LocalTime)
+  safeFromSql (SqlBitField bf)        = incompatibleTypes bf (undefined :: LocalTime)
+  safeFromSql (SqlUUID u)             = incompatibleTypes u (undefined :: LocalTime)
+  safeFromSql (SqlUTCTime ut)         = incompatibleTypes ut (undefined :: LocalTime)
+  safeFromSql (SqlLocalDate ld)       = Right $ LocalTime ld midnight
+  safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: LocalTime)
+  safeFromSql (SqlLocalTime lt)       = Right $ lt
+  safeFromSql SqlNull                 = nullConvertError (undefined :: LocalTime)
 
 
 instance (ToSql a) => ToSql (Maybe a) where
