@@ -214,7 +214,7 @@ test5 = do
 testFetchAllRows :: Assertion
 testFetchAllRows = do
   c <- newConnection True
-  let indt = [ [SqlInt32 10, SqlText "hello"]
+  let indt = [ [SqlInteger 10, SqlText "hello"]
              , [SqlDouble 45.4, SqlNull]
              , [SqlText "sdf", SqlText "efef"]
              ]
