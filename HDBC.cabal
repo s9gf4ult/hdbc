@@ -60,6 +60,7 @@ Test-Suite sqlvalues
   ghc-prof-options: -fprof-auto
   Build-Depends:    base >= 4
                   , Decimal >= 0.2.1
+                  , HUnit
                   , QuickCheck
                   , attoparsec
                   , blaze-builder
@@ -69,6 +70,7 @@ Test-Suite sqlvalues
                   , quickcheck-assertions
                   , quickcheck-instances
                   , test-framework
+                  , test-framework-hunit
                   , test-framework-quickcheck2
                   , text
                   , time >=1.1.2.4 && <=1.5

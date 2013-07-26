@@ -18,6 +18,7 @@ module Database.HDBC.Parsers
 import Control.Applicative ((<$>), (<|>))
 import qualified Data.Attoparsec.Text.Lazy as P
 import Data.Bits
+import Data.Char (isDigit)
 import Data.Time
 import Data.Word
 import Data.Monoid (getFirst, First(..), mconcat)
@@ -54,16 +55,25 @@ parseIsoZonedTime = zoned P.<?> "ZonedTime parser"
     zoned = do
       time          <- parseIsoLocalTime
       spaces
-      (addt, z) <- zone
-      return $ if addt /= 0
-               then utcToZonedTime z $ addUTCTime addt $ zonedTimeToUTC $ ZonedTime time z
-               else ZonedTime time z
+      zn <- P.option Nothing $ Just <$> zone
+      case zn of
+        Nothing -> return $ ZonedTime time utc
+        Just (addt, z) -> return $ if addt /= 0
+                                   then utcToZonedTime z
+                                        $ addUTCTime addt
+                                        $ zonedTimeToUTC
+                                        $ ZonedTime time z
+                                   else ZonedTime time z
     zone = do
       sign <- P.option '+' (P.char '-' <|> P.char '+')
       (a, z) <- hhmmss <|> hhmm <|> hhhh
       return $ if sign == '+'
-               then (a, minutesToTimeZone z)
-               else (negate a, minutesToTimeZone $ negate z)
+               then (fromIntegral a, minutesToTimeZone z)
+               else (fromIntegral $ negate a, minutesToTimeZone $ negate z)
+
+    fromh h = (0, 60 * h)
+    fromhm h m = (0, m + (60 * h))
+    fromhms h m s = (s, m + (60 * h))
 
     hhmmss = do
       hh <- P.decimal
@@ -71,17 +81,24 @@ parseIsoZonedTime = zoned P.<?> "ZonedTime parser"
       mm <- P.decimal
       _ <- P.char ':'
       ss <- P.decimal
-      return (fromInteger ss, mm + (60 * hh))
+      return $ fromhms hh mm ss
 
     hhmm = do
       hh <- P.decimal
       _ <- P.char ':'
       mm <- P.decimal
-      return (0, mm + (60 * hh))
+      return $ fromhm hh mm
 
     hhhh = do
-      hh <- P.decimal
-      return (0, hh * 60)
+      h <- P.takeWhile1 isDigit
+      case T.length h of
+        4 -> return $ fromhm (readd $ T.take 2 h) (readd $ T.drop 2 h) -- 0400 format
+        6 -> return $ fromhms (readd $ T.take 2 h) (readd $ T.take 2 $ T.drop 2 h) (readd $ T.drop 4 h)
+        _ -> return $ fromh $ readd h
+
+    readd t = T.foldl' fld 0 t
+      where
+        fld ac c = (fromEnum c - fromEnum '0') + (ac * 10)
 
 parseIsoDay :: P.Parser Day
 parseIsoDay = dayparse P.<?> "Day parser"

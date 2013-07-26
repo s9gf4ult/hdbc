@@ -144,7 +144,7 @@ instance Statement DummyStatement where
 
 test1 :: Assertion
 test1 = do
-  c <- newConnection True
+  c <- ConnWrapper <$> newConnection True
   (withTransaction c $ do
       intr <- inTransaction c
       intr `shouldBe` True
@@ -156,7 +156,7 @@ test1 = do
 
 test2 :: Assertion
 test2 = do
-  c <- newConnection True
+  c <- ConnWrapper <$> newConnection True
   intr1 <- inTransaction c
   intr1 `shouldBe` False
   withTransaction c $ do
@@ -169,24 +169,26 @@ test2 = do
 
 test3 :: Assertion
 test3 = do
-  c <- newConnection False
+  c <- ConnWrapper <$> newConnection False
   sub c
   performGC                     -- after this all refs must be empty
-  p <- readMVar $ dcChilds c
+  p <- case castConnection c of
+    Just cc ->  readMVar $ dcChilds cc
   prts <- filterM (deRefWeak >=> (return . isJust)) p
   (length prts) `shouldBe` 0
 
     where
-      sub c = do
-        st1 <- prepare c "query 1"
-        st2 <- prepare c "query 2"
-        executeRaw st2
-        prts <- readMVar $ dcChilds c
-        (length prts) `shouldBe` 2
+      sub cn = case castConnection cn of
+        Just c -> do 
+          st1 <- prepare c "query 1"
+          st2 <- prepare c "query 2"
+          executeRaw st2
+          prts <- readMVar $ dcChilds c
+          (length prts) `shouldBe` 2
 
 test4 :: Assertion
 test4 = do
-  c <- newConnection False
+  c <- ConnWrapper <$> newConnection False
   stmt <- prepare c "query 1"
   disconnect c
   ss <- statementStatus stmt
@@ -194,7 +196,7 @@ test4 = do
 
 test5 :: Assertion
 test5 = do
-  c <- newConnection True
+  c <- ConnWrapper <$> newConnection True
   c2 <- clone c
   st1 <- prepare c "query"
   stt <- statementStatus st1
@@ -213,7 +215,7 @@ test5 = do
 
 testFetchAllRows :: Assertion
 testFetchAllRows = do
-  c <- newConnection True
+  c <- ConnWrapper <$> newConnection True
   let indt = [ [SqlInteger 10, SqlText "hello"]
              , [SqlDouble 45.4, SqlNull]
              , [SqlText "sdf", SqlText "efef"]

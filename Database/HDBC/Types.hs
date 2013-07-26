@@ -44,6 +44,7 @@ import Prelude hiding (catch)
 import qualified Data.Text.Lazy as TL
 import Database.HDBC.SqlValue (SqlValue)
 
+import Control.Applicative ((<$>))
 import Control.Exception (Exception(..), SomeException, try, catch, throwIO, bracket)
 import Control.DeepSeq (NFData(..))
 import Data.Typeable
@@ -64,7 +65,7 @@ data SqlError =
 
 instance Exception SqlError
 
--- | safe newtype wrapper for queries. Just lazy Text inside.         
+-- | safe newtype wrapper for queries. Just lazy Text inside.
 newtype Query = Query { unQuery :: TL.Text -- ^ Unwrap query to lazy Text
                       }
               deriving (Eq, Data, Ord, Read, Show, IsString, Typeable, Monoid, NFData)
@@ -76,12 +77,12 @@ data ConnStatus = ConnOK           -- ^ Successfully connected
                 | ConnBad          -- ^ Connection is in some bad state
                   deriving (Typeable, Show, Read, Eq)
 
--- | Typeclass to abstract the working with connection.                  
+-- | Typeclass to abstract the working with connection.
 class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
-  
+
   -- | Specific statement for specific connection
   type ConnStatement conn :: *
-  
+
   -- | Disconnection from the database. Every opened statement must be finished
   -- after this method executed.
   disconnect :: conn -> IO ()
@@ -132,7 +133,7 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   -- default implementation through 'executeRaw'.
   runRaw :: conn -> Query -> IO ()
   runRaw conn query = withStatement conn query executeRaw
-  
+
   -- | Execute query with set of parameters. Has default implementation through
   -- 'executeMany'.
   runMany :: conn -> Query -> [[SqlValue]] -> IO ()
@@ -169,11 +170,11 @@ instance Connection ConnWrapper where
   rollback (ConnWrapper conn) = rollback conn
   inTransaction (ConnWrapper conn) = inTransaction conn
   connStatus (ConnWrapper conn) = connStatus conn
-  prepare (ConnWrapper conn) str = (prepare conn str) >>= (\s -> return $ StmtWrapper s)
+  prepare (ConnWrapper conn) str = StmtWrapper <$> prepare conn str
   run (ConnWrapper conn) = run conn
   runRaw (ConnWrapper conn) = runRaw conn
   runMany (ConnWrapper conn) = runMany conn
-  clone (ConnWrapper conn) = (clone conn) >>= (\c -> return $ ConnWrapper c)
+  clone (ConnWrapper conn) = ConnWrapper <$> clone conn
   hdbcDriverName (ConnWrapper conn) = hdbcDriverName conn
   dbTransactionSupport (ConnWrapper conn) = dbTransactionSupport conn
 
@@ -182,7 +183,7 @@ instance Connection ConnWrapper where
 -- connection to specific type dynamically.
 castConnection :: (Connection conn) => ConnWrapper -> Maybe conn
 castConnection (ConnWrapper conn) = cast conn
-  
+
 
 
 -- | Statement's status returning by function 'statementStatus'.
@@ -230,9 +231,9 @@ class (Typeable stmt) => Statement stmt where
 
   -- | Fetch next row from the executed statement. Return Nothing when there is
   -- no more results acceptable. Each call return next row from the result.
-  -- 
+  --
   -- UPDATE INSERT and DELETE queries will likely return Nothing.
-  -- 
+  --
   -- NOTE: You still need to explicitly finish the statement after receiving
   -- Nothing, unlike with old HDBC interface.
   fetchRow :: stmt -> IO (Maybe [SqlValue])
@@ -315,7 +316,7 @@ withTransaction conn func = do
       catch  (rollback conn) (\(_ :: SomeException) -> return ())
       throwIO e
 
-{-| Create statement and execute monadic action using 
+{-| Create statement and execute monadic action using
 it. Safely finalize Statement after action is done.
 -}
 withStatement :: (Connection conn, Statement stmt, stmt ~ (ConnStatement conn))
@@ -326,4 +327,3 @@ withStatement :: (Connection conn, Statement stmt, stmt ~ (ConnStatement conn))
 withStatement conn query = bracket
                            (prepare conn query)
                            finish
-
