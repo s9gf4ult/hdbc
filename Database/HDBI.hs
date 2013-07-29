@@ -1,5 +1,5 @@
 {- |
-   Module     : Database.HDBC
+   Module     : Database.HDBI
    Copyright  : Copyright (C) 2005-2011 John Goerzen
    License    : BSD3
 
@@ -8,15 +8,16 @@
    Portability: portable
  -}
 
-module Database.HDBC
+module Database.HDBI
        (
 
--- | Welcome to HDBC, the Haskell Database Connectivity library.
--- Written by John Goerzen, jgoerzen\@complete.org
+-- | Welcome to HDBI, the Haskell Database Independed interface.  Written by
+-- John Goerzen, jgoerzen\@complete.org, rewritten by Aleksey Uymanov
+-- <s9gf4ult@gmail.com>
 
 -- * Introduction
 
--- |HDBC provides an abstraction layer between Haskell programs and SQL
+-- |HDBI provides an abstraction layer between Haskell programs and SQL
 -- relational databases.  This lets you write database code once, in Haskell,
 -- and have it work with any number of backend SQL databases (MySQL, Oracle,
 -- PostgreSQL, ODBC-compliant databases, etc.)
@@ -25,7 +26,7 @@ module Database.HDBC
 
 -- | There is two typeclasses 'Connection' and 'Statement'. Each database driver
 -- must provide it's own types (e.g. PostgreConnection and PostgreStatement in
--- HDBC-postgresql driver) and instances for them. Driver can provide additional
+-- HDBI-postgresql driver) and instances for them. Driver can provide additional
 -- low-level functions not covered by these typeclasses.
 --
 -- There is also database-independent wrappers 'StmtWrapper' and 'ConnWrapper'
@@ -72,8 +73,8 @@ module Database.HDBC
 --
 --module Main where
 --
---import Database.HDBC
---import Database.HDBC.PostgreSQL
+--import Database.HDBI
+--import Database.HDBI.PostgreSQL
 --import Control.Applicative
 --import Data.Time
 --import qualified Data.ByteString as B
@@ -96,17 +97,17 @@ module Database.HDBC
 
 -- * Some kind of roadmap
 
--- |* Finish other hdbc drivers, like mysql and sqlite
+-- |* Finish other hdbi drivers, like mysql and sqlite
 --
 -- * Unify the testing and benchmarking with one package.
 --
--- * Create package hdbc-introspect with common interface to introspect and
+-- * Create package hdbi-introspect with common interface to introspect and
 -- change the schema. Also it will be necessary to create packages
--- hdbc-introspect-postgresql, hdbc-introspect-mysql and so on for each database
+-- hdbi-introspect-postgresql, hdbi-introspect-mysql and so on for each database
 -- using specific methods to introspect and change the schema. This is the base
 -- package for doing migrations like in Ruby on Rails.
 --
--- * Create hdbc-resourcet and hdbc-conduit to provide convenient and reliable
+-- * Create hdbi-resourcet and hdbi-conduit to provide convenient and reliable
 -- way for finalizing statements and streaming processing the query results.
 --
 -- * Port other high-level database interfaces, like ''persistent'' and
@@ -123,7 +124,7 @@ module Database.HDBC
 --    from the database.
 --
 --  * Provide convenient way to convert Haskell-side data to database-side data
---  and vice versa. This is done with 'Convertible' instances.
+--  and vice versa. This is done with 'FromSql' and 'ToSql' instances.
 --
 --  * Give the most wide set of supported types, such as Decimal (arbitrary
 --    precision values), Integer, Date and Time
@@ -144,12 +145,12 @@ module Database.HDBC
 
 -- * Out of scope
 
--- | * Database introspection: HDBC must not know how to introspect the
+-- | * Database introspection: HDBI must not know how to introspect the
 --    database. This problem must be solved with separate package
---    e.g. hdbc-introspect providing the common interface to introspect the
---    schema and drivers hdbc-introspect-postgresql, hdbc-introspect-mysql and
+--    e.g. hdbi-introspect providing the common interface to introspect the
+--    schema and drivers hdbi-introspect-postgresql, hdbi-introspect-mysql and
 --    so on to provide database-specific implementation of this
---    interface. Current HDBC architecture allows to acces to low-levl
+--    interface. Current HDBI architecture allows to acces to low-levl
 --    connection and statement functions. The mandatory Typeable instance for
 --    any Connection and Statement instance allows to downcast any polymorphic
 --    type to specific type and do whatever you need.
@@ -162,10 +163,10 @@ module Database.HDBC
 --
 --  * Any other things not related to query execution.
 
--- * Difference between HDBC-2 and HDBC-3.
+-- * Difference between HDBC and HDBI
 
 -- |This is the rewritten HDBC with new features and better design. Here is the
--- difference between HDBC-2 and HDBC-3:
+-- difference between HDBC and HDBI:
 --
 --  * typeclass IConnection renamed to 'Connection' to be more Haskell-specific
 --
@@ -216,12 +217,12 @@ module Database.HDBC
 --
 --  * SqlZonedTime, SqlPOSIXTime and SqlEpochTime are removed. They has
 --    absolutely the same type on database side as SqlUTCTime. You can convert
---    PosixTime to UTCTime and vice versa using the instances from `convertible`
---    package, so there is no need in this consturctors. No one database has
---    native type storing ZoneInfo directly, every database convert zoned
---    datetime to utc format and apply local server's timezone to convert utc
---    back to zoned datetime when you select this value. So SqlZonedTime is just
---    the same as SqlUTCTime on database side.
+--    PosixTime to UTCTime and vice versa explicitly, so there is no need in
+--    this consturctors. No one database has native type storing ZoneInfo
+--    directly, every database convert zoned datetime to utc format and apply
+--    local server's timezone to convert utc back to zoned datetime when you
+--    select this value. So SqlZonedTime is just the same as SqlUTCTime on
+--    database side.
 --
 --  * SqlZonedTime and SqlDiffTime removed because no wide support of this types on
 --    database level. In fact just PostgreSql. But maybe I am wrong.
@@ -234,23 +235,23 @@ module Database.HDBC
 -- |Drivers must be implemented using clean and safe bindings. You must not use
 -- C-hacks to interact with database client library, this is the binding's goal.
 --
---  * HDBC-postgresql: use postgresql-libpq and postgresql-simple
+--  * HDBI-postgresql: use postgresql-libpq and postgresql-simple
 --    bindings. PostgreSQL use @$n@ (where @n@ is parameter index) placeholder
 --    for query parameters, but you can safely use @?@ placeholder like in other
---    databases. HDBC-postgresql replaces @?@ with sequential @$n@ placeholders
+--    databases. HDBI-postgresql replaces @?@ with sequential @$n@ placeholders
 --    before passing the query to database. You can also use @$n@ directly but
 --    will break portablility.
 
 -- * Thread-safety
 
--- |All HDBC drivers must use thread safe MVars to store data, which can be
+-- |All HDBI drivers must use thread safe MVars to store data, which can be
 -- shared between threads.
 
 -- * Reimported modules
-         module Database.HDBC.SqlValue
-       , module Database.HDBC.Types
+         module Database.HDBI.SqlValue
+       , module Database.HDBI.Types
        ) where
 
 
-import Database.HDBC.SqlValue
-import Database.HDBC.Types
+import Database.HDBI.SqlValue
+import Database.HDBI.Types

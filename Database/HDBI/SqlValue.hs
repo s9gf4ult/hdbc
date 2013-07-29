@@ -14,7 +14,7 @@
     StandaloneDeriving #-}
 #endif
 
-module Database.HDBC.SqlValue
+module Database.HDBI.SqlValue
     (
       ToSql(..)
     , FromSql(..)
@@ -26,8 +26,8 @@ module Database.HDBC.SqlValue
 
 where
 
-import Database.HDBC.Formaters
-import Database.HDBC.Parsers
+import Database.HDBI.Formaters
+import Database.HDBI.Parsers
   
 import Control.Applicative ((<$>))
 import Control.Exception
@@ -190,7 +190,7 @@ complexity, but lazy to strict converts with O(n) complexity, so it is logical
 to use lazy Text.
 
 We are not using ByteString as text encoded in UTF-8, ByteStrings are just
-sequences of bytes. We are using strict ByteStrings because HDBC drivers uses
+sequences of bytes. We are using strict ByteStrings because HDBI drivers uses
 them to pass the ByteString to the C library as 'CString', so it must be strict.
 
 We are not using 'String' as data of query or as query itself because it is not

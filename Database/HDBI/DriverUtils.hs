@@ -1,5 +1,5 @@
 {- |
-   Module     : Database.HDBC.DriverUtils
+   Module     : Database.HDBI.DriverUtils
    Copyright  : Copyright (C) 2006 John Goerzen
    License    : BSD3
 
@@ -10,13 +10,13 @@
 Utilities for database backend drivers.
 
 Please note: this module is intended for authors of database driver libraries
-only.  Authors of applications using HDBC should use 'Database.HDBC'
+only.  Authors of applications using HDBI should use 'Database.HDBI'
 exclusively.
 
 Written by John Goerzen, jgoerzen\@complete.org
 -}
 
-module Database.HDBC.DriverUtils (
+module Database.HDBI.DriverUtils (
   ChildList
   , closeAllChildren
   , addChild
@@ -27,7 +27,7 @@ where
 import Control.Concurrent.MVar
 import System.Mem.Weak
 import Control.Monad
-import Database.HDBC.Types (Statement(..))
+import Database.HDBI.Types (Statement(..))
 
 -- | List of weak pointers to childs with concurrent access
 type ChildList stmt = MVar [Weak stmt]

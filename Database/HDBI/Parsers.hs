@@ -2,7 +2,7 @@
   OverloadedStrings
   #-}
 
-module Database.HDBC.Parsers
+module Database.HDBI.Parsers
        (
 -- | This module is for driver developers. Here is fast parsers, trying to parse
 -- time and date in the most wide input formats.

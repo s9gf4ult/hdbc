@@ -8,7 +8,7 @@
   #-}
 
 {- |
-   Module     : Database.HDBC.Types
+   Module     : Database.HDBI.Types
    Copyright  : Copyright (C) 2005-2011 John Goerzen
    License    : BSD3
 
@@ -16,12 +16,12 @@
    Stability  : provisional
    Portability: portable
 
-Types for HDBC.
+Types for HDBI.
 
 Written by John Goerzen, jgoerzen\@complete.org
 -}
 
-module Database.HDBC.Types
+module Database.HDBI.Types
        (
          -- * Typeclasses
          Connection(..)
@@ -42,7 +42,7 @@ module Database.HDBC.Types
 
 import Prelude hiding (catch)
 import qualified Data.Text.Lazy as TL
-import Database.HDBC.SqlValue (SqlValue)
+import Database.HDBI.SqlValue (SqlValue)
 
 import Control.Applicative ((<$>))
 import Control.Exception (Exception(..), SomeException, try, catch, throwIO, bracket)
@@ -88,7 +88,7 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   disconnect :: conn -> IO ()
 
   -- | Explicitly start the transaction. Without starting the transaction you
-  -- can not commit or rollback it. HDBC does not check if transaction started
+  -- can not commit or rollback it. HDBI does not check if transaction started
   -- or not, this is the application's resposibility.
   --
   -- This is not recomended to use 'start' by hands, use 'withTransaction'
@@ -144,10 +144,10 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   -- settings
   clone :: conn -> IO conn
 
-  -- | The name of the HDBC driver module for this connection. Ideally would be
+  -- | The name of the HDBI driver module for this connection. Ideally would be
   -- the same as the database name portion of the Cabal package name.  For
   -- instance, \"sqlite3\" or \"postgresql\".  This is the layer that is bound most
-  -- tightly to HDBC
+  -- tightly to HDBI
   hdbcDriverName :: conn -> String
 
   -- | Whether or not the current database supports transactions. If False, then

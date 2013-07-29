@@ -7,8 +7,8 @@
 module SqlValues where
 
 import Control.Applicative
-import Database.HDBC (ToSql(..), FromSql(..), BitField(..))
-import Database.HDBC.Parsers
+import Database.HDBI (ToSql(..), FromSql(..), BitField(..))
+import Database.HDBI.Parsers
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck2

@@ -22,8 +22,8 @@ import Control.Monad
 import Data.Typeable
 import Data.Maybe
 
-import Database.HDBC
-import Database.HDBC.DriverUtils
+import Database.HDBI
+import Database.HDBI.DriverUtils
 
 data TStatus = TIdle | TInTransaction
              deriving (Eq, Show, Read, Typeable)

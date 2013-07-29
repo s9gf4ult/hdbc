@@ -1,4 +1,4 @@
-module Database.HDBC.Formaters
+module Database.HDBI.Formaters
        (
          formatBitField
        , formatIsoUTCTime
