@@ -1,27 +1,27 @@
-Name: HDBC
-Version: 3.0.0
+Name: hdbi
+Version: 1.0.0
 License: BSD3
-Maintainer: Nicolas Wu <nicolas.wu@gmail.com>
+Maintainer: Aleksey Uymanov <s9gf4ult@gmail.com>
 Author: John Goerzen
-homepage: https://github.com/hdbc/hdbc
+homepage: https://github.com/s9gf4ult/hdbi
 Copyright: Copyright (c) 2005-2011 John Goerzen
 license-file: LICENSE
 extra-source-files: LICENSE, README.md
 Category: Database
-synopsis: Haskell Database Connectivity
-Description: HDBC provides an abstraction layer between Haskell programs and SQL
+synopsis: Haskell Database Independent interface
+Description: HDBI provides an abstraction layer between Haskell programs and SQL
  relational databases. This lets you write database code once, in
  Haskell, and have it work with any number of backend SQL databases
  (MySQL, Oracle, PostgreSQL, ODBC-compliant databases, etc.)
 
-Stability: Stable
+Stability: experimental
 Build-Type: Simple
 
 Cabal-Version: >=1.8
 
 source-repository head
   type:            git
-  location:        https://github.com/hdbc/hdbc.git
+  location:        https://github.com/s9gf4ult/hdbi.git
 
 
 library
@@ -45,17 +45,17 @@ library
   GHC-Options: -Wall -fno-warn-orphans
   ghc-prof-options: -fprof-auto
 
-  Exposed-Modules: Database.HDBC
-                 , Database.HDBC.DriverUtils
-                 , Database.HDBC.SqlValue
-                 , Database.HDBC.Types
-                 , Database.HDBC.Formaters
-                 , Database.HDBC.Parsers
+  Exposed-Modules: Database.HDBI
+                 , Database.HDBI.DriverUtils
+                 , Database.HDBI.SqlValue
+                 , Database.HDBI.Types
+                 , Database.HDBI.Formaters
+                 , Database.HDBI.Parsers
 
 Test-Suite sqlvalues
   Type:             exitcode-stdio-1.0
   Main-Is:          testsrc/sqlvalues.hs
-  other-modules: Database.HDBC
+  other-modules: Database.HDBI
   GHC-Options: -Wall -main-is SqlValues -fno-warn-orphans
   ghc-prof-options: -fprof-auto
   Build-Depends:    base >= 4
@@ -76,12 +76,11 @@ Test-Suite sqlvalues
                   , time >=1.1.2.4 && <=1.5
                   , uuid >= 1.0.0
 
-
 Test-Suite dummydriver
   Type:             exitcode-stdio-1.0
   Main-Is:          testsrc/dummydriver.hs
-  other-modules: Database.HDBC
-               , Database.HDBC.DriverUtils
+  other-modules: Database.HDBI
+               , Database.HDBI.DriverUtils
   GHC-Options: -Wall -main-is DummyDriver -fno-warn-orphans
   ghc-prof-options: -fprof-auto
   Build-Depends:    base
