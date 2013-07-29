@@ -682,3 +682,11 @@ instance (ToSql a) => ToSql (Maybe a) where
 instance (FromSql a) => FromSql (Maybe a) where
   safeFromSql SqlNull = Right Nothing
   safeFromSql x       = Just <$> safeFromSql x
+
+
+instance ToSql SqlValue where
+  toSql = id
+
+instance FromSql SqlValue where
+  safeFromSql x = Right x
+  fromSql = id
