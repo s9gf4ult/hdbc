@@ -148,7 +148,7 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
   -- the same as the database name portion of the Cabal package name.  For
   -- instance, \"sqlite3\" or \"postgresql\".  This is the layer that is bound most
   -- tightly to HDBI
-  hdbcDriverName :: conn -> String
+  hdbiDriverName :: conn -> String
 
   -- | Whether or not the current database supports transactions. If False, then
   -- 'commit' and 'rollback' should be expected to raise errors.
@@ -175,7 +175,7 @@ instance Connection ConnWrapper where
   runRaw (ConnWrapper conn) = runRaw conn
   runMany (ConnWrapper conn) = runMany conn
   clone (ConnWrapper conn) = ConnWrapper <$> clone conn
-  hdbcDriverName (ConnWrapper conn) = hdbcDriverName conn
+  hdbiDriverName (ConnWrapper conn) = hdbiDriverName conn
   dbTransactionSupport (ConnWrapper conn) = dbTransactionSupport conn
 
 -- | Cast wrapped connection to the specific connection type using 'cast' of

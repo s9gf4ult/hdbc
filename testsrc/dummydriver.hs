@@ -109,7 +109,7 @@ instance Connection DummyConnection where
                <*> newMVar []
                <*> newChildList
                <*> (return $ dcTransSupport conn)
-  hdbcDriverName = const "DummyDriver"
+  hdbiDriverName = const "DummyDriver"
   dbTransactionSupport = dcTransSupport
 
   
