@@ -129,7 +129,7 @@ database. Every database driver will do it's best to properly convert any
 SqlValue to the database record's field, and properly convert the record's field
 to SqlValue back.
 
-The 'SqlValue' has predefined 'Convertible' instances for many Haskell's
+The 'SqlValue' has predefined 'FromSql' and 'ToSql' instances for many Haskell's
 types. Any Haskell's type can be converted to the 'SqlValue' with 'toSql'
 function. There is no safeToSql function because 'toSql' never fails. Also, any
 'SqlValue' type can be converted to almost any Haskell's type as well. Not any
@@ -156,7 +156,7 @@ natively we will not create 'SqlValue' clause for it.
 Each 'SqlValue' constructor is documented or self-explaining to understand what
 it is needed for.
 
-/CONVERTIBLE INSTANCES/
+/'ToSql' and 'FromSql' INSTANCES/
 
 The key idea is to do the most obvious conversion between types only if it is
 not ambiguous. For example, the most obvious conversion of 'Double' to 'Int32'
@@ -216,7 +216,7 @@ returning the data. So it is logical to work with timezones on the haskell side.
 
 Time intervals are not widely supported, actually just in PostgreSQL and
 Oracle. So, if you need them you can serialize throgh 'SqlText' by hands, or
-write your own Convertible instances to do that more convenient.
+write your own 'ToSql' and 'FromSql' instances to do that more convenient.
 
 /EQUALITY OF SQLVALUE/
 

@@ -50,12 +50,10 @@ instance Arbitrary BitField where
 instance Eq ZonedTime where
   (ZonedTime a b) == (ZonedTime aa bb) = a == aa && b == bb
 
--- commonChecks :: (Convertible a SqlValue, Convertible SqlValue a, Eq a, Show a) => a -> Property
 commonChecks :: (Eq a, Show a, ToSql a, FromSql a) => a -> Property
 commonChecks x = (partialChecks x) .&&.
                  (x ==? (fromSql $ toSql (fromSql $ toSql x :: TL.Text))) -- convert to Text and back
 
--- partialChecks :: (Eq a, Show a, Convertible a SqlValue, Convertible SqlValue a) => a -> Result
 partialChecks :: (Eq a, Show a, ToSql a, FromSql a) => a -> Result
 partialChecks x = x ==? (fromSql $ toSql x)
 
