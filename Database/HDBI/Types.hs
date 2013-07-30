@@ -12,8 +12,8 @@
    Copyright  : Copyright (C) 2005-2011 John Goerzen
    License    : BSD3
 
-   Maintainer : John Goerzen <jgoerzen@complete.org>
-   Stability  : provisional
+   Maintainer : Aleksey Uymanov <s9gf4ult@gmail.com>
+   Stability  : experimental
    Portability: portable
 
 Types for HDBI.

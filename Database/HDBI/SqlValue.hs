@@ -14,6 +14,17 @@
     StandaloneDeriving #-}
 #endif
 
+{- |
+   Module     : Database.HDBI.SqlValue
+   Copyright  : Copyright (C) 2006 John Goerzen
+   License    : BSD3
+
+   Maintainer : Aleksey Uymanov <s9gf4ult@gmail.com>
+   Stability  : experimental
+   Portability: portable
+-}
+  
+
 module Database.HDBI.SqlValue
     (
       ToSql(..)
@@ -162,17 +173,17 @@ The key idea is to do the most obvious conversion between types only if it is
 not ambiguous. For example, the most obvious conversion of 'Double' to 'Int32'
 is just truncate the 'Double', the most obvious conversion of String to
 'UTCTime' is to try read the 'String' as date and time. But there is no obvious
-way to convert 'Int32' to 'UTCTime', so if you will try to convert ('SqlInt32'
+way to convert 'Int32' to 'UTCTime', so if you will try to convert ('SqlInteger'
 44) to date you will fail. User must handle this cases properly converting
 values with right way. It is not very good idea to silently perform strange and
 ambiguous convertions between absolutely different data types.
 
 /ERROR CONDITIONS/
 
-There may sometimes be an error during conversion.  For instance, if you have a
+There may be sometimes an error during conversion.  For instance, if you have an
 'SqlText' and attempting to convert it to an 'Integer', but it doesn't parse as
-an 'Integer', you will get an error.  This will be indicated as an exception if
-using 'fromSql', or a Left result if using 'safeFromSql'.
+an 'Integer', you will get an error.  This will be indicated as an exception
+using 'fromSql', or a Left result using 'safeFromSql'.
 
 
 /STORING SQLVALUE TO DATABASE/
@@ -194,7 +205,7 @@ sequences of bytes. We are using strict ByteStrings because HDBI drivers uses
 them to pass the ByteString to the C library as 'CString', so it must be strict.
 
 We are not using 'String' as data of query or as query itself because it is not
-effective by memory and cpu.
+effective in memory and cpu.
 
 /DATE AND TIME/
 

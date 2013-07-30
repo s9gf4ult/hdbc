@@ -2,6 +2,17 @@
   OverloadedStrings
   #-}
 
+{- |
+   Module     : Database.HDBI.Parsers
+   Copyright  : Copyright (C) 2006 John Goerzen
+   License    : BSD3
+
+   Maintainer : Aleksey Uymanov <s9gf4ult@gmail.com>
+   Stability  : experimental
+   Portability: portable
+-}
+
+
 module Database.HDBI.Parsers
        (
 -- | This module is for driver developers. Here is fast parsers, trying to parse

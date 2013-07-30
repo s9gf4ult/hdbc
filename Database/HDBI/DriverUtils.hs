@@ -3,20 +3,20 @@
    Copyright  : Copyright (C) 2006 John Goerzen
    License    : BSD3
 
-   Maintainer : John Goerzen <jgoerzen@complete.org>
-   Stability  : provisional
+   Maintainer : Aleksey Uymanov <s9gf4ult@gmail.com>
+   Stability  : experimental
    Portability: portable
-
-Utilities for database backend drivers.
-
-Please note: this module is intended for authors of database driver libraries
-only.  Authors of applications using HDBI should use 'Database.HDBI'
-exclusively.
 
 Written by John Goerzen, jgoerzen\@complete.org
 -}
 
 module Database.HDBI.DriverUtils (
+-- | Utilities for database backend drivers.
+--   
+-- Please note: this module is intended for authors of database driver libraries
+-- only.  Authors of applications using HDBI should use 'Database.HDBI'
+-- exclusively.
+  
   ChildList
   , closeAllChildren
   , addChild

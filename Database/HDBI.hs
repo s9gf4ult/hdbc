@@ -3,8 +3,8 @@
    Copyright  : Copyright (C) 2005-2011 John Goerzen
    License    : BSD3
 
-   Maintainer : John Goerzen <jgoerzen@complete.org>
-   Stability  : provisional
+   Maintainer : Aleksey Uymanov <s9gf4ult@gmail.com>
+   Stability  : experimental
    Portability: portable
  -}
 
@@ -187,6 +187,8 @@ module Database.HDBI
 --  * 'SqlValue' constructors set is reduced.
 --
 --  * Removed any lazy IO operations.
+--
+--  * Fast parsers for date, time, timestamp and numbers. Written using 'attoparsec'.         
 
 -- ** Differences in SqlValue
 
@@ -198,9 +200,8 @@ module Database.HDBI
 --
 --  * SqlByteString is renamed to SqlBlob to be more verbal.
 --
---  * SqlWord32 and SqlWord64 is removed because they have the same type on
---    database side as Int. E.g. there is no unsigned integer type in
---    PostgreSql.
+--  * SqlWord32, SqlWord64, SqlInt32, SqlInt64 are removed and replaced with one
+--    SqlInteger.
 --
 --  * SqlChar is removed because this is the same as Text with one character,
 --    and there is no special ''one char'' type.
@@ -236,15 +237,15 @@ module Database.HDBI
 -- C-hacks to interact with database client library, this is the binding's goal.
 --
 --  * HDBI-postgresql: use postgresql-libpq and postgresql-simple
---    bindings. PostgreSQL use @$n@ (where @n@ is parameter index) placeholder
---    for query parameters, but you can safely use @?@ placeholder like in other
---    databases. HDBI-postgresql replaces @?@ with sequential @$n@ placeholders
---    before passing the query to database. You can also use @$n@ directly but
---    will break portablility.
+--    bindings. PostgreSQL use ''$n'' (where ''n'' is parameter index)
+--    placeholder for query parameters, but you can safely use ''?'' placeholder
+--    like in other databases. HDBI-postgresql replaces ''?'' with sequential
+--    ''$n'' placeholders before passing the query to database. You can also use
+--    ''$n'' directly but will break portablility.
 
 -- * Thread-safety
 
--- |All HDBI drivers must use thread safe MVars to store data, which can be
+-- | All HDBI drivers must use thread safe MVars to store data, which can be
 -- shared between threads.
 
 -- * Reimported modules
