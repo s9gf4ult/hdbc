@@ -126,7 +126,6 @@ instance Statement DummyStatement where
     
   statementStatus = readMVar . dsStatus
 
-  affectedRows = const $ return 0
   finish stmt = modifyMVar_ (dsStatus stmt) $ const $ return StatementFinished
   reset stmt = modifyMVar_ (dsStatus stmt) $ const $ return StatementNew
   fetchRow stmt = modifyMVar (dsSelecting stmt) $ \slct -> case slct of

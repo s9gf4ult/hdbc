@@ -216,11 +216,6 @@ class (Typeable stmt) => Statement stmt where
   -- | Return the current statement's status.
   statementStatus :: stmt -> IO StatementStatus
 
-  -- | Return the count of rows affected by INSERT, UPDATE or DELETE
-  -- query. After executing SELECT query it will return 0 every time.
-  -- It is also undefined result after executing 'executeMany'
-  affectedRows :: stmt -> IO Integer
-
   -- | Finish statement and remove database-specific pointer. No any actions may
   -- be proceeded after closing the statement, excpet 'statementStatus' which
   -- will return 'StatementFinished' and 'reset'.
@@ -272,7 +267,6 @@ instance Statement StmtWrapper where
   executeRaw (StmtWrapper stmt) = executeRaw stmt
   executeMany (StmtWrapper stmt) = executeMany stmt
   statementStatus (StmtWrapper stmt) = statementStatus stmt
-  affectedRows (StmtWrapper stmt) = affectedRows stmt
   finish (StmtWrapper stmt) = finish stmt
   reset (StmtWrapper stmt) = reset stmt
   fetchRow (StmtWrapper stmt) = fetchRow stmt
