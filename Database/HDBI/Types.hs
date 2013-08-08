@@ -40,17 +40,19 @@ module Database.HDBI.Types
        , withStatement
        ) where
 
+
 import Prelude hiding (catch)
-import qualified Data.Text.Lazy as TL
-import Database.HDBI.SqlValue (SqlValue)
 
 import Control.Applicative ((<$>))
-import Control.Exception (Exception(..), SomeException, try, catch, throwIO, bracket)
 import Control.DeepSeq (NFData(..))
-import Data.Typeable
-import Data.String (IsString(..))
+import Control.Exception (Exception(..), SomeException, try, catch, throwIO, bracket)
+import Control.Monad (forM_)
 import Data.Data (Data(..))
 import Data.Monoid (Monoid(..), Endo(..))
+import Data.String (IsString(..))
+import Data.Typeable
+import Database.HDBI.SqlValue (SqlValue)
+import qualified Data.Text.Lazy as TL
 
 -- | Error throwing by driver when database operation fails
 data SqlError =
@@ -211,7 +213,9 @@ class (Typeable stmt) => Statement stmt where
   -- | Execute one query many times with a list of paramters. Has default
   -- implementation through 'execute'.
   executeMany :: stmt -> [[SqlValue]] -> IO ()
-  executeMany stmt vals = mapM_ (execute stmt) vals
+  executeMany stmt vals = forM_ vals $ \val -> do
+    execute stmt val
+    reset stmt
 
   -- | Return the current statement's status.
   statementStatus :: stmt -> IO StatementStatus
