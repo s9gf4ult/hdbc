@@ -1,0 +1,9 @@
+hdbi-1.1.0
+
+	* fixed default implementation of `executeMany`: perform reset
+	after execute
+
+	* removed affectedRows from Statement: sqlite does not support
+	this feature directly
+
+	* ChangeLog added
