@@ -57,7 +57,7 @@ closeAllChildren mcl = modifyMVar_ mcl $ \ls -> do
 a finalizer for it, to remove it from the list when possible. -}
 addChild :: (Statement stmt) => (ChildList stmt) -> stmt -> IO ()
 addChild mcl stmt = 
-    do weakptr <- mkWeakPtr stmt (Just (childFinalizer mcl))
+    do weakptr <- mkWeakPtr stmt (Just (childFinalizer stmt mcl))
        modifyMVar_ mcl (\l -> return (weakptr : l))
 
 {- | The general finalizer for a child.
@@ -66,8 +66,9 @@ It is simply a filter that removes any finalized weak pointers from the parent.
 
 If the MVar is locked at the start, does nothing to avoid deadlock.  Future
 runs would probably catch it anyway. -}
-childFinalizer :: ChildList a -> IO ()
-childFinalizer mcl = do
+childFinalizer :: (Statement stmt) => stmt -> ChildList stmt -> IO ()
+childFinalizer stmt mcl = do
+  finish stmt                   -- make sure the statement is finished
   c <- isEmptyMVar mcl
   case c of
     True   -> return ()
