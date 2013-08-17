@@ -33,6 +33,7 @@ library
                , bytestring
                , deepseq
                , old-locale
+               , stm
                , text
                , time >=1.1.2.4 && <=1.5
                , uuid >= 1.0.0
@@ -81,7 +82,7 @@ Test-Suite dummydriver
   Main-Is:          testsrc/dummydriver.hs
   other-modules: Database.HDBI
                , Database.HDBI.DriverUtils
-  GHC-Options: -Wall -main-is DummyDriver -fno-warn-orphans
+  GHC-Options: -Wall -main-is DummyDriver -fno-warn-orphans -threaded
   ghc-prof-options: -fprof-auto
   Build-Depends:    base
                   , Decimal >= 0.2.1
@@ -92,6 +93,7 @@ Test-Suite dummydriver
                   , deepseq
                   , hspec-expectations
                   , old-locale
+                  , stm
                   , test-framework
                   , test-framework-hunit
                   , text

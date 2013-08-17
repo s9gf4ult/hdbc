@@ -34,8 +34,9 @@ data DummyConnection =
                   , dcData :: MVar [[SqlValue]]
                   , dcChilds :: ChildList DummyStatement
                   , dcTransSupport :: Bool
+                  , dcCounter :: MVar Int -- ^ child statements counter
                   }
-  deriving (Typeable, Eq)
+  deriving (Typeable)
 
 data DummyStatement =
   DummyStatement { dsConnection :: DummyConnection
@@ -43,8 +44,8 @@ data DummyStatement =
                  , dsSelecting :: MVar (Maybe Int)
                  , dsStatus :: MVar StatementStatus
                  }
-  deriving (Typeable, Eq)
-  
+  deriving (Typeable)
+
 
 newConnection :: Bool -> IO DummyConnection
 newConnection transSupport = DummyConnection
@@ -53,6 +54,7 @@ newConnection transSupport = DummyConnection
                              <*> newMVar []
                              <*> newChildList
                              <*> return transSupport
+                             <*> newMVar 0
 
 withOKConnection :: DummyConnection -> IO a -> IO a
 withOKConnection conn action = do
@@ -65,14 +67,14 @@ withTransactionSupport :: DummyConnection -> IO a -> IO a
 withTransactionSupport conn action = case (dcTransSupport conn) of
   True -> action
   False -> throwIO $ SqlError "10" "Transaction is not supported by this connection"
-  
+
 
 instance Connection DummyConnection where
   type ConnStatement DummyConnection = DummyStatement
   disconnect conn = modifyMVar_ (dcState conn) $ \_ -> do
     closeAllChildren $ dcChilds conn
     return ConnDisconnected
-  
+
   begin conn = withOKConnection conn
                $ withTransactionSupport conn
                $ modifyMVar_ (dcTrans conn)
@@ -102,6 +104,7 @@ instance Connection DummyConnection where
           <*> newMVar Nothing
           <*> newMVar StatementNew
     addChild (dcChilds conn) st
+    modifyMVar_ (dcCounter conn) $ return . (+1)
     return st
   clone conn = DummyConnection
                <$> (newMVar ConnOK)
@@ -109,10 +112,11 @@ instance Connection DummyConnection where
                <*> newMVar []
                <*> newChildList
                <*> (return $ dcTransSupport conn)
+               <*> newMVar 0
   hdbiDriverName = const "DummyDriver"
   dbTransactionSupport = dcTransSupport
 
-  
+
 instance Statement DummyStatement where
   execute stmt params = modifyMVar_ (dsStatus stmt) $ \st -> do
     case st of
@@ -123,11 +127,21 @@ instance Statement DummyStatement where
           "select" -> modifyMVar (dsSelecting stmt) $ const $ return (Just 0, StatementExecuted)
           _ -> return StatementExecuted
       _ -> throwIO $ SqlError "6" $ "Statement has wrong status to execute query " ++ show st
-    
+
   statementStatus = readMVar . dsStatus
 
-  finish stmt = modifyMVar_ (dsStatus stmt) $ const $ return StatementFinished
-  reset stmt = modifyMVar_ (dsStatus stmt) $ const $ return StatementNew
+  finish stmt = modifyMVar_ (dsStatus stmt) $ \s -> case s of
+    r@StatementFinished -> return r
+    _ -> do
+      modifyMVar_ (dcCounter $ dsConnection stmt) $ return . (\x -> x - 1)
+      return StatementFinished
+
+  reset stmt = modifyMVar_ (dsStatus stmt) $ \s -> case s of
+    StatementFinished -> do
+      modifyMVar_ (dcCounter $ dsConnection stmt) $ return . (+1)
+      return StatementNew
+    _ -> return StatementNew
+
   fetchRow stmt = modifyMVar (dsSelecting stmt) $ \slct -> case slct of
     Nothing -> return (Nothing, Nothing)
     Just sl -> do
@@ -135,14 +149,14 @@ instance Statement DummyStatement where
       if (length dt) > sl
         then return (Just $ sl+1, Just $ dt !! sl)
         else return (Nothing, Nothing)
-    
-    
+
+
   getColumnNames = const $ return []
   originalQuery = dsQuery
 
-
-test1 :: Assertion
-test1 = do
+-- | rollback after exception
+inTransactionExceptions :: Assertion
+inTransactionExceptions = do
   c <- ConnWrapper <$> newConnection True
   (withTransaction c $ do
       intr <- inTransaction c
@@ -153,8 +167,9 @@ test1 = do
   intr <- inTransaction c
   intr `shouldBe` False         -- after rollback
 
-test2 :: Assertion
-test2 = do
+-- | commit after no exception
+inTransactionCommit :: Assertion
+inTransactionCommit = do
   c <- ConnWrapper <$> newConnection True
   intr1 <- inTransaction c
   intr1 `shouldBe` False
@@ -166,35 +181,36 @@ test2 = do
   intr <- inTransaction c
   intr `shouldBe` False         -- after commit
 
-test3 :: Assertion
-test3 = do
+weakRefsEmpty :: Assertion
+weakRefsEmpty = do
   c <- ConnWrapper <$> newConnection False
   sub c
   performGC                     -- after this all refs must be empty
   p <- case castConnection c of
-    Just cc ->  readMVar $ dcChilds cc
+    Just cc ->  readMVar $ clList $ dcChilds cc
   prts <- filterM (deRefWeak >=> (return . isJust)) p
   (length prts) `shouldBe` 0
 
     where
       sub cn = case castConnection cn of
-        Just c -> do 
+        Just c -> do
           st1 <- prepare c "query 1"
           st2 <- prepare c "query 2"
           executeRaw st2
-          prts <- readMVar $ dcChilds c
+          prts <- readMVar $ clList $ dcChilds c
           (length prts) `shouldBe` 2
 
-test4 :: Assertion
-test4 = do
+-- | Childs finished after 'closeAllChildren'
+closeAllChildrenFinish :: Assertion
+closeAllChildrenFinish = do
   c <- ConnWrapper <$> newConnection False
   stmt <- prepare c "query 1"
   disconnect c
   ss <- statementStatus stmt
   ss `shouldBe` StatementFinished
 
-test5 :: Assertion
-test5 = do
+eachConnectionSeparate :: Assertion
+eachConnectionSeparate = do
   c <- ConnWrapper <$> newConnection True
   c2 <- clone c
   st1 <- prepare c "query"
@@ -232,14 +248,39 @@ testFetchAllRows = do
   executeRaw ss
   outdt <- fetchAllRows ss
   outdt `shouldBe` indt
-  
-  
-  
+
+noStatementsAfterDisconnect :: Assertion
+noStatementsAfterDisconnect = do
+  c <- newConnection True
+  sub c
+  disconnect c
+  readMVar (dcCounter c) >>= (`shouldBe` 0)
+
+  c2 <- newConnection True
+  sub c
+  performGC                     -- disconnect must wait for finalizers even
+                                -- after GC
+  disconnect c
+  readMVar (dcCounter c2) >>= (`shouldBe` 0)
+  where
+    sub c = do
+      withStatement c "query string" $ \st -> do -- this statement should be
+                                                -- finished
+        executeRaw st
+        _ <- fetchRow st
+        return ()
+      s <- prepare c "query string" -- but this should not
+      executeRaw s
+      s2 <- prepare c "query string"
+      return ()
+
+
 main :: IO ()
-main = defaultMain [ testCase "Transaction exception handling" test1
-                   , testCase "Transaction commiting" test2
-                   , testCase "Child statements" test3
-                   , testCase "Childs closed when disconnect" test4
-                   , testCase "Each connection has it's own childs" test5
+main = defaultMain [ testCase "Transaction exception handling" inTransactionExceptions
+                   , testCase "Transaction commiting" inTransactionCommit
+                   , testCase "Child statements empty after GC" weakRefsEmpty
+                   , testCase "Childs closed when disconnect" closeAllChildrenFinish
+                   , testCase "Each connection has it's own childs" eachConnectionSeparate
                    , testCase "Fetch all rows preserve order" testFetchAllRows
+                   , testCase "No statements after disconnect" noStatementsAfterDisconnect
                    ]
