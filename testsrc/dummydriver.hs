@@ -7,23 +7,23 @@
 
 module DummyDriver where
 
-import System.Mem
-import System.Mem.Weak
-
-import Test.HUnit (Assertion)
-import Test.Framework
-import Test.Framework.Providers.HUnit
-import Test.Hspec.Expectations
-
 import Control.Applicative
 import Control.Concurrent.MVar
+import Control.Concurrent.STM.TVar
 import Control.Exception
 import Control.Monad
-import Data.Typeable
 import Data.Maybe
-
+import Data.Typeable
 import Database.HDBI
 import Database.HDBI.DriverUtils
+import System.Mem
+import System.Mem.Weak
+import Test.Framework
+import Test.Framework.Providers.HUnit
+import Test.HUnit (Assertion)
+import Test.Hspec.Expectations
+import qualified Data.IntMap as M
+
 
 data TStatus = TIdle | TInTransaction
              deriving (Eq, Show, Read, Typeable)
@@ -187,8 +187,8 @@ weakRefsEmpty = do
   sub c
   performGC                     -- after this all refs must be empty
   p <- case castConnection c of
-    Just cc ->  readMVar $ clList $ dcChilds cc
-  prts <- filterM (deRefWeak >=> (return . isJust)) p
+    Just cc ->  readTVarIO $ clList $ dcChilds cc
+  prts <- filterM (deRefWeak >=> (return . isJust)) $ map snd $ M.toList p
   (length prts) `shouldBe` 0
 
     where
@@ -197,8 +197,8 @@ weakRefsEmpty = do
           st1 <- prepare c "query 1"
           st2 <- prepare c "query 2"
           executeRaw st2
-          prts <- readMVar $ clList $ dcChilds c
-          (length prts) `shouldBe` 2
+          prts <- readTVarIO $ clList $ dcChilds c
+          (length $ M.toList prts) `shouldBe` 2
 
 -- | Childs finished after 'closeAllChildren'
 closeAllChildrenFinish :: Assertion
