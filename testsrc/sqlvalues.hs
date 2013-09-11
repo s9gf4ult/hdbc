@@ -7,6 +7,12 @@
 module SqlValues where
 
 import Control.Applicative
+import Data.Decimal
+import Data.Int
+import Data.List (intercalate)
+import Data.Time
+import Data.UUID
+import Data.Word
 import Database.HDBI (ToSql(..), FromSql(..), BitField(..))
 import Database.HDBI.Parsers
 import Test.Framework
@@ -17,18 +23,11 @@ import Test.QuickCheck (Arbitrary(..))
 import Test.QuickCheck.Assertions
 import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Property
-
 import qualified Data.Attoparsec.Text.Lazy as P
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
-import Data.Decimal
-import Data.Int
-import Data.List (intercalate)
-import Data.Time
-import Data.UUID
-import Data.Word
 
 
 #if MIN_VERSION_Decimal(0,3,1)

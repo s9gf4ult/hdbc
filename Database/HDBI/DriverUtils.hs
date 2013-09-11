@@ -25,8 +25,8 @@ module Database.HDBI.DriverUtils (
 
 where
 
-import Control.Concurrent.MVar
 import Control.Applicative
+import Control.Concurrent.MVar
 import Control.Concurrent.STM.TVar
 import Control.Monad
 import Control.Monad.STM

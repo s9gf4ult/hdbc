@@ -27,16 +27,16 @@ module Database.HDBI.Parsers
        ) where
 
 import Control.Applicative ((<$>), (<|>))
-import qualified Data.Attoparsec.Text.Lazy as P
 import Data.Bits
 import Data.Char (isDigit)
+import Data.Monoid (getFirst, First(..), mconcat)
 import Data.Time
 import Data.Word
-import Data.Monoid (getFirst, First(..), mconcat)
+import qualified Data.Attoparsec.Text.Lazy as P
 import qualified Data.Text as T
 
 spaces :: P.Parser ()
-spaces = P.takeWhile (\x -> x == ' ' || x == '\t') >> return ()
+spaces = P.skipWhile (\x -> x == ' ' || x == '\t')
 
 
 -- | Parse bit field literal in format ''b'00101011'''. Takes just last 64 bits
