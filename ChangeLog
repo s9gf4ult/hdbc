@@ -1,3 +1,12 @@
+hdbi-1.1.1
+
+	* Tests: that no alive statements will be after `disconnect`.
+
+	* DriverUtils: ChildList implemented with STM, closeAllChildren
+	now wait for all child statements finalizers.
+
+	* new dependency: stm
+
 hdbi-1.1.0
 
 	* fixed default implementation of `executeMany`: perform reset
