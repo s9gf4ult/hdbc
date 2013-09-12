@@ -24,7 +24,7 @@ module Database.HDBI
 
 -- * Design notes
 
--- | There is two typeclasses 'Connection' and 'Statement'. Each database driver
+-- | There are two typeclasses 'Connection' and 'Statement'. Each database driver
 -- must provide it's own types (e.g. PostgreConnection and PostgreStatement in
 -- HDBI-postgresql driver) and instances for them. Driver can provide additional
 -- low-level functions not covered by these typeclasses.
@@ -34,7 +34,7 @@ module Database.HDBI
 -- wrappers can hold database-specific type and call it's instance methods to
 -- interact with database. You can still use low-level functions provided for
 -- wrapped type by casting the wrapper back to the specific type by functions
--- 'castStatement' and 'castConnection'. Here is how it's look like:
+-- 'castStatement' and 'castConnection'. Here's how it look like:
 --
 -- @
 --genericStmtLen :: StmtWrapper -> IO Int
