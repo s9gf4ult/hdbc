@@ -23,12 +23,14 @@
    Stability  : experimental
    Portability: portable
 -}
-  
+
 
 module Database.HDBI.SqlValue
     (
       ToSql(..)
     , FromSql(..)
+    , ToRow(..)
+    , FromRow(..)
     , ConvertError(..)
     , BitField(..)
       -- * SQL value marshalling
@@ -37,22 +39,21 @@ module Database.HDBI.SqlValue
 
 where
 
-import Database.HDBI.Formaters
-import Database.HDBI.Parsers
-  
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>), (<*>))
 import Control.Exception
 import Data.Attoparsec.Text.Lazy
-import Data.Data (Data)
-import Data.Ix (Ix)
 import Data.Bits (Bits)
+import Data.Data (Data)
 import Data.Decimal
 import Data.Int
+import Data.Ix (Ix)
 import Data.List (intercalate)
 import Data.Time
 import Data.Typeable
 import Data.UUID (UUID, fromString, toString)
 import Data.Word
+import Database.HDBI.Formaters
+import Database.HDBI.Parsers
 import qualified Blaze.ByteString.Builder as BB
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -96,7 +97,100 @@ class FromSql a where
     Left e -> throw e
     Right a -> a
 
+class ToRow a where
+  toRow :: a -> [SqlValue]
 
+class FromRow a where
+  safeFromRow :: [SqlValue] -> Either ConvertError a
+
+  fromRow :: [SqlValue] -> a
+  fromRow sqls = case safeFromRow sqls of
+    Left e -> throw e
+    Right a -> a
+
+wrongSqlList :: [SqlValue] -- ^ given list of SqlValues
+                -> Int -- ^ expected length of list
+                -> Either ConvertError a
+wrongSqlList x c = Left $ ConvertError
+                   $ "Wrong count of SqlValues: " ++ (show $ length x)
+                   ++ " but expected: " ++ (show c)
+
+-- instance (ToSql a) => ToRow a where
+--   toRow a = [toSql a]
+
+-- instance (FromSql a) => FromRow a where
+--   safeFromRow [a] = safeFromSql a
+--   safeFromRow x = wrongSqlList x 1
+
+instance (ToSql a) => ToRow [a] where
+  toRow a = map toSql a
+
+instance (FromSql a) => FromRow [a] where
+  safeFromRow a = mapM safeFromSql a
+
+instance (ToSql a, ToSql b) => ToRow (a, b) where
+  toRow (a, b) = [toSql a, toSql b]
+
+instance (FromSql a, FromSql b) => FromRow (a, b) where
+  safeFromRow [a, b] = (,) <$> safeFromSql a <*> safeFromSql b
+  safeFromRow x = wrongSqlList x 2
+
+instance (ToSql a, ToSql b, ToSql c) => ToRow (a, b, c) where
+  toRow (a, b, c) = [toSql a, toSql b, toSql c]
+
+instance (FromSql a, FromSql b, FromSql c) => FromRow (a, b, c) where
+  safeFromRow [a, b, c] = (,,) <$> safeFromSql a <*> safeFromSql b <*> safeFromSql c
+  safeFromRow x = wrongSqlList x 3
+
+instance (ToSql a, ToSql b, ToSql c, ToSql d) => ToRow (a, b, c, d) where
+  toRow (a, b, c, d) = [toSql a, toSql b, toSql c, toSql d]
+
+instance (FromSql a, FromSql b, FromSql c, FromSql d) => FromRow (a, b, c, d) where
+  safeFromRow [a, b, c, d] = (,,,) <$> safeFromSql a <*> safeFromSql b <*> safeFromSql c <*> safeFromSql d
+  safeFromRow x = wrongSqlList x 4
+
+instance (ToSql a, ToSql b, ToSql c, ToSql d, ToSql e) => ToRow (a, b, c, d, e) where
+  toRow (a, b, c, d, e) = [toSql a, toSql b, toSql c, toSql d, toSql e]
+
+instance (FromSql a, FromSql b, FromSql c, FromSql d, FromSql e) => FromRow (a, b, c, d, e) where
+  safeFromRow [a, b, c, d, e] = (,,,,)
+                                <$> safeFromSql a
+                                <*> safeFromSql b
+                                <*> safeFromSql c
+                                <*> safeFromSql d
+                                <*> safeFromSql e
+  safeFromRow x = wrongSqlList x 5
+
+
+instance (ToSql a, ToSql b, ToSql c, ToSql d, ToSql e, ToSql f) => ToRow (a, b, c, d, e, f) where
+  toRow (a, b, c, d, e, f) = [toSql a, toSql b, toSql c, toSql d, toSql e, toSql f]
+
+instance (FromSql a, FromSql b, FromSql c, FromSql d, FromSql e, FromSql f) => FromRow (a, b, c, d, e, f) where
+  safeFromRow [a, b, c, d, e, f] = (,,,,,)
+                                   <$> safeFromSql a
+                                   <*> safeFromSql b
+                                   <*> safeFromSql c
+                                   <*> safeFromSql d
+                                   <*> safeFromSql e
+                                   <*> safeFromSql f
+  safeFromRow x = wrongSqlList x 6
+
+instance (ToSql a, ToSql b, ToSql c, ToSql d, ToSql e, ToSql f, ToSql g) => ToRow (a, b, c, d, e, f, g) where
+  toRow (a, b, c, d, e, f, g) = [toSql a, toSql b, toSql c, toSql d, toSql e, toSql f, toSql g]
+
+instance (FromSql a, FromSql b, FromSql c, FromSql d, FromSql e, FromSql f, FromSql g) => FromRow (a, b, c, d, e, f, g) where
+  safeFromRow [a, b, c, d, e, f, g] = (,,,,,,)
+                                      <$> safeFromSql a
+                                      <*> safeFromSql b
+                                      <*> safeFromSql c
+                                      <*> safeFromSql d
+                                      <*> safeFromSql e
+                                      <*> safeFromSql f
+                                      <*> safeFromSql g
+  safeFromRow x = wrongSqlList x 7
+  
+  
+  
 -- | Show parser detail error
 showFail :: [String]  -- ^ List of contexts of parser
             -> String -- ^ Error message
@@ -568,7 +662,7 @@ instance FromSql Bool where
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Bool)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Bool)
 
-  
+
 instance ToSql BitField where
   toSql = SqlBitField
 

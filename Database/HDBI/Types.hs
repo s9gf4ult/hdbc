@@ -38,6 +38,12 @@ module Database.HDBI.Types
        , castStatement
        , withTransaction
        , withStatement
+       , runRow
+       , runManyRows
+       , executeRow
+       , executeManyRows
+       , fetchRow
+       , fetchAllRows
        ) where
 
 
@@ -51,7 +57,7 @@ import Data.Data (Data(..))
 import Data.Monoid (Monoid(..), Endo(..))
 import Data.String (IsString(..))
 import Data.Typeable
-import Database.HDBI.SqlValue (SqlValue)
+import Database.HDBI.SqlValue (SqlValue, ToRow(..), FromRow(..))
 import qualified Data.Text.Lazy as TL
 
 -- | Error throwing by driver when database operation fails
@@ -235,12 +241,12 @@ class (Typeable stmt) => Statement stmt where
   --
   -- NOTE: You still need to explicitly finish the statement after receiving
   -- Nothing, unlike with old HDBC interface.
-  fetchRow :: stmt -> IO (Maybe [SqlValue])
+  fetch :: stmt -> IO (Maybe [SqlValue])
 
   -- | Optional method to strictly fetch all rows from statement. Has default
-  -- implementation through 'fetchRow'.
-  fetchAllRows :: stmt -> IO [[SqlValue]]
-  fetchAllRows stmt = do
+  -- implementation through 'fetch'.
+  fetchAll :: stmt -> IO [[SqlValue]]
+  fetchAll stmt = do
     e <- f mempty
     return $ (appEndo e) []
     where
@@ -273,8 +279,8 @@ instance Statement StmtWrapper where
   statementStatus (StmtWrapper stmt) = statementStatus stmt
   finish (StmtWrapper stmt) = finish stmt
   reset (StmtWrapper stmt) = reset stmt
-  fetchRow (StmtWrapper stmt) = fetchRow stmt
-  fetchAllRows (StmtWrapper stmt) = fetchAllRows stmt
+  fetch (StmtWrapper stmt) = fetch stmt
+  fetchAll (StmtWrapper stmt) = fetchAll stmt
   getColumnNames (StmtWrapper stmt) = getColumnNames stmt
   getColumnsCount (StmtWrapper stmt) = getColumnsCount stmt
   originalQuery (StmtWrapper stmt) = originalQuery stmt
@@ -325,3 +331,22 @@ withStatement :: (Connection conn, Statement stmt, stmt ~ (ConnStatement conn))
 withStatement conn query = bracket
                            (prepare conn query)
                            finish
+
+
+runRow :: (Connection con, ToRow a) => con -> Query -> a -> IO ()
+runRow con query row = run con query $ toRow row
+
+runManyRows :: (Connection con, ToRow a) => con -> Query -> [a] -> IO ()
+runManyRows con query rows = runMany con query $ map toRow rows
+
+executeRow :: (Statement stmt, ToRow a) => stmt -> a -> IO ()
+executeRow stmt row = execute stmt $ toRow row
+
+executeManyRows :: (Statement stmt, ToRow a) => stmt -> [a] -> IO ()
+executeManyRows stmt rows = executeMany stmt $ map toRow rows
+
+fetchRow :: (Statement stmt, FromRow a) => stmt -> IO (Maybe a)
+fetchRow stmt = fetch stmt >>= return . (fromRow <$>)
+
+fetchAllRows :: (Statement stmt, FromRow a) => stmt -> IO [a]
+fetchAllRows stmt = fetchAll stmt >>= return . map fromRow

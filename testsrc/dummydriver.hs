@@ -142,7 +142,7 @@ instance Statement DummyStatement where
       return StatementNew
     _ -> return StatementNew
 
-  fetchRow stmt = modifyMVar (dsSelecting stmt) $ \slct -> case slct of
+  fetch stmt = modifyMVar (dsSelecting stmt) $ \slct -> case slct of
     Nothing -> return (Nothing, Nothing)
     Just sl -> do
       dt <- readMVar $ dcData $ dsConnection stmt
@@ -246,7 +246,7 @@ testFetchAllRows = do
   finish s3
   ss <- prepare c "select"
   executeRaw ss
-  outdt <- fetchAllRows ss
+  outdt <- fetchAll ss
   outdt `shouldBe` indt
 
 noStatementsAfterDisconnect :: Assertion
@@ -267,7 +267,7 @@ noStatementsAfterDisconnect = do
       withStatement c "query string" $ \st -> do -- this statement should be
                                                 -- finished
         executeRaw st
-        _ <- fetchRow st
+        _ <- fetch st
         return ()
       s <- prepare c "query string" -- but this should not
       executeRaw s
