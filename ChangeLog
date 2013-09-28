@@ -1,3 +1,13 @@
+hdbi-1.2.0
+
+	* FromRow and ToRow typeclasses to simplify data transformation
+	between database and Haskell.
+
+	* TH module to derive FromRow and ToRow instances
+
+	* Statement method `fetchRow` renamed to `fetch`. `fetchRow` is
+	now a function
+
 hdbi-1.1.1
 
 	* Tests: that no alive statements will be after `disconnect`.

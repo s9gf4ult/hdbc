@@ -33,7 +33,7 @@ module Database.HDBI.Types
        , StatementStatus(..)
        , StmtWrapper(..)
        , SqlError(..)
-         -- * functions
+         -- * Auxiliary functions
        , castConnection
        , castStatement
        , withTransaction
@@ -333,9 +333,11 @@ withStatement conn query = bracket
                            finish
 
 
+-- | same as `run` but uses `ToRow` instance
 runRow :: (Connection con, ToRow a) => con -> Query -> a -> IO ()
 runRow con query row = run con query $ toRow row
 
+-- | same as `runMany` but uses `ToRow`
 runManyRows :: (Connection con, ToRow a) => con -> Query -> [a] -> IO ()
 runManyRows con query rows = runMany con query $ map toRow rows
 

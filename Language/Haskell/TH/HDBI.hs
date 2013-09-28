@@ -26,12 +26,12 @@ getTParams :: String -> Name -> Q (Name, Maybe Int)
 getTParams exc name = do
   tcon <- reify name
   case tcon of
-    (TyConI dec) -> do 
+    (TyConI dec) -> do
       case dec of
         (DataD _ _ vars constrs _) -> do
           checkVars vars
           case constrs of
-            [con] -> getTParams' con 
+            [con] -> getTParams' con
             _ -> fl $ "data " ++ (show name) ++ " should have exactly one constructor"
 
         (NewtypeD _ _ vars con _) -> do
@@ -51,8 +51,8 @@ getTParams exc name = do
     getTParams' (RecC n fields) = return (n, Just $ length fields)
     getTParams' (InfixC _ n _) = return (n, Nothing)
     getTParams' _ = fl $ "data constructors should not contain typevar boundries for " ++ show name
-  
-              
+
+
 -- | Derive `ToRow` instance for any data with one constructor or for newtype
 deriveToRow :: Name -> Q [Dec]
 deriveToRow name = do
@@ -60,12 +60,12 @@ deriveToRow name = do
   names <- case fields of
     Just fl -> replicateM fl $ newName "val"
     Nothing -> replicateM 2 $ newName "val"
-  
+
   return [InstanceD [] (AppT (ConT ''ToRow) (ConT name))
           [FunD 'toRow
            [Clause [mkPattern con fields names]
            (NormalB $ ListE $ map (\nm -> AppE (VarE 'toSql) (VarE nm)) names) [] ]]]
-  where 
+  where
     mkPattern con Nothing [n1, n2] = InfixP (VarP n1) con (VarP n2)
     mkPattern con (Just _) names = ConP con $ map VarP names
 
@@ -83,10 +83,13 @@ deriveFromRow name = do
             (NormalB $ UInfixE (mkCon fields con) (VarE '(<$>)) (foldedFromSql names)) []
            ,Clause [VarP xname]
             (NormalB $ AppE (ConE 'Left) (AppE (ConE 'ConvertError)
+             (UInfixE
               (LitE $ StringL $ "Could not construct " ++ show name
                 ++ ": query must return exactly "
-                ++ (show $ length names) ++ " values but not " ))) [] ]]]
-           
+                ++ (show $ length names) ++ " values but not " )
+              (VarE '(++))
+              (AppE (VarE 'show) (AppE (VarE 'length) (VarE xname)))))) []]]]
+
   where
     foldedFromSql names = foldl1 (\a b -> UInfixE a (VarE '(<*>)) b)
                            $ map (\n -> AppE (VarE 'safeFromSql) (VarE n)) names

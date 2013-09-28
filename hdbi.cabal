@@ -71,9 +71,11 @@ Test-Suite sqlvalues
                   , bytestring
                   , containers
                   , deepseq
+                  , derive
                   , old-locale
                   , quickcheck-assertions
                   , quickcheck-instances
+                  , template-haskell
                   , test-framework
                   , test-framework-hunit
                   , test-framework-quickcheck2

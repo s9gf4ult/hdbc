@@ -1,5 +1,6 @@
 {-# LANGUAGE
   ScopedTypeVariables
+, TemplateHaskell
 , FlexibleContexts
 , CPP
   #-}
@@ -10,11 +11,13 @@ import Control.Applicative
 import Data.Decimal
 import Data.Int
 import Data.List (intercalate)
+import Data.DeriveTH
 import Data.Time
 import Data.UUID
 import Data.Word
-import Database.HDBI (ToSql(..), FromSql(..), BitField(..))
+import Database.HDBI (ToSql(..), FromSql(..), BitField(..), FromRow(..), ToRow(..))
 import Database.HDBI.Parsers
+import Language.Haskell.TH.HDBI
 import Test.Framework
 import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck2
@@ -28,6 +31,24 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
+
+data D1 = D1 Int
+        deriving (Show, Eq)
+data D3 = D3 Int String Double
+        deriving (Show, Eq)
+data D4 = D4 UUID String UTCTime Decimal
+        deriving (Show, Eq)
+deriveToRow ''D1
+deriveFromRow ''D1
+deriveToRow ''D3
+deriveFromRow ''D3
+deriveToRow ''D4
+deriveFromRow ''D4
+$(derive makeArbitrary ''D1)
+$(derive makeArbitrary ''D3)
+$(derive makeArbitrary ''D4)
+
+
 
 
 #if MIN_VERSION_Decimal(0,3,1)
@@ -86,6 +107,16 @@ sqlValueTestGroup = testGroup "can convert to SqlValue and back"
                 , testProperty "with UTCTime" $ \(ut :: UTCTime) -> commonChecks ut
                 , testProperty "with Maybe Int" $ \(mi :: Maybe Int) -> mi == (fromSql $ toSql mi) -- can not represent Null as ByteString
                 ]
+
+thTests :: Test
+thTests = testGroup "TH tests"
+          [ testProperty "data D1 = D1 Int" $ \(d :: D1) -> testFromToRow d
+          , testProperty "data D3 = D3 Int String Double" $ \(d :: D3) -> testFromToRow d
+          , testProperty "data D4 = D4 UUID String UTCTime Decimal" $ \(d :: D4) -> testFromToRow d
+          ]
+
+testFromToRow :: (FromRow a, ToRow a, Show a, Eq a) => a -> Result
+testFromToRow a = a ==? (fromRow $ toRow a)
 
 parserFail :: [String] -> String -> String
 parserFail cont msg = "parser failed in context: "
@@ -153,4 +184,5 @@ parserTests = testGroup "can parse this dates and times"
 main :: IO ()
 main = defaultMain [ sqlValueTestGroup
                    , parserTests
+                   , thTests
                    ]
