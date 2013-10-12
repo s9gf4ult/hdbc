@@ -115,13 +115,6 @@ wrongSqlList x c = Left $ ConvertError
                    $ "Wrong count of SqlValues: " ++ (show $ length x)
                    ++ " but expected: " ++ (show c)
 
--- instance (ToSql a) => ToRow a where
---   toRow a = [toSql a]
-
--- instance (FromSql a) => FromRow a where
---   safeFromRow [a] = safeFromSql a
---   safeFromRow x = wrongSqlList x 1
-
 instance (ToSql a) => ToRow [a] where
   toRow a = map toSql a
 

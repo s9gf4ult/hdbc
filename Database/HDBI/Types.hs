@@ -251,7 +251,7 @@ class (Typeable stmt) => Statement stmt where
     return $ (appEndo e) []
     where
       f acc = do
-        res <- fetchRow stmt
+        res <- fetch stmt
         case res of
           Just r -> f (acc `mappend` (Endo (r:)))
           Nothing -> return acc
