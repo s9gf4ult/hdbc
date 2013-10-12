@@ -1,10 +1,12 @@
 {-# LANGUAGE
     TypeFamilies
+  , CPP
   , DeriveDataTypeable
   , ExistentialQuantification
   , FlexibleContexts
   , ScopedTypeVariables
   , GeneralizedNewtypeDeriving
+  , BangPatterns
   #-}
 
 {- |
@@ -38,26 +40,24 @@ module Database.HDBI.Types
        , castStatement
        , withTransaction
        , withStatement
-       , runRow
-       , runManyRows
-       , executeRow
-       , executeManyRows
-       , fetchRow
-       , fetchAllRows
+       , runFetch
+       , runFetchAll
+       , runFetchOne
        ) where
 
-
+#if ! (MIN_VERSION_base(4,6,0))
 import Prelude hiding (catch)
-
+#endif
 import Control.Applicative ((<$>))
 import Control.DeepSeq (NFData(..))
 import Control.Exception (Exception(..), SomeException, try, catch, throwIO, bracket)
 import Control.Monad (forM_)
+import Data.Monoid (Monoid(..))
 import Data.Data (Data(..))
-import Data.Monoid (Monoid(..), Endo(..))
 import Data.String (IsString(..))
 import Data.Typeable
-import Database.HDBI.SqlValue (SqlValue, ToRow(..), FromRow(..))
+import Database.HDBI.SqlValue (ToRow(..), FromRow(..), FromSql(..), ConvertError(..))
+import qualified Data.Sequence as S
 import qualified Data.Text.Lazy as TL
 
 -- | Error throwing by driver when database operation fails
@@ -133,20 +133,17 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
 
   -- | Run query and safely finalize statement after that. Has default
   -- implementation through 'execute'.
-  run :: conn -> Query -> [SqlValue] -> IO ()
-  run conn query values = withStatement conn query $
-                          \s -> execute s values
-
-  -- | Run raw query without parameters and safely finalize statement. Has
-  -- default implementation through 'executeRaw'.
-  runRaw :: conn -> Query -> IO ()
-  runRaw conn query = withStatement conn query executeRaw
+  run :: (ToRow row) => conn -> Query -> row -> IO ()
+  run conn query row = withStatement conn query
+                       $ \s -> execute s row
+  {-# INLINEABLE run #-}
 
   -- | Execute query with set of parameters. Has default implementation through
   -- 'executeMany'.
-  runMany :: conn -> Query -> [[SqlValue]] -> IO ()
-  runMany conn query values = withStatement conn query $
-                              \s -> executeMany s values
+  runMany :: (ToRow row) => conn -> Query -> [row] -> IO ()
+  runMany conn query rows = withStatement conn query
+                            $ \s -> executeMany s rows
+  {-# INLINEABLE runMany #-}
 
   -- | Clone the database connection. Return new connection with the same
   -- settings
@@ -180,7 +177,6 @@ instance Connection ConnWrapper where
   connStatus (ConnWrapper conn) = connStatus conn
   prepare (ConnWrapper conn) str = StmtWrapper <$> prepare conn str
   run (ConnWrapper conn) = run conn
-  runRaw (ConnWrapper conn) = runRaw conn
   runMany (ConnWrapper conn) = runMany conn
   clone (ConnWrapper conn) = ConnWrapper <$> clone conn
   hdbiDriverName (ConnWrapper conn) = hdbiDriverName conn
@@ -209,18 +205,13 @@ class (Typeable stmt) => Statement stmt where
   -- for PostgreSQL which uses placeholders like ''$1''. Application must ensure
   -- that the count of placeholders is equal to count of parameter, it is likely
   -- cause an error if it is not.
-  execute :: stmt -> [SqlValue] -> IO ()
-
-  -- | Execute single query without parameters. Has default implementation
-  -- through 'execute'.
-  executeRaw :: stmt -> IO ()
-  executeRaw stmt = execute stmt []
+  execute :: (ToRow row) => stmt -> row -> IO ()
 
   -- | Execute one query many times with a list of paramters. Has default
   -- implementation through 'execute'.
-  executeMany :: stmt -> [[SqlValue]] -> IO ()
-  executeMany stmt vals = forM_ vals $ \val -> do
-    execute stmt val
+  executeMany :: (ToRow row) => stmt -> [row] -> IO ()
+  executeMany stmt rows = forM_ rows $ \row -> do
+    execute stmt row
     reset stmt
 
   -- | Return the current statement's status.
@@ -241,20 +232,18 @@ class (Typeable stmt) => Statement stmt where
   --
   -- NOTE: You still need to explicitly finish the statement after receiving
   -- Nothing, unlike with old HDBC interface.
-  fetch :: stmt -> IO (Maybe [SqlValue])
+  fetch :: (FromRow row) => stmt -> IO (Maybe row)
 
   -- | Optional method to strictly fetch all rows from statement. Has default
   -- implementation through 'fetch'.
-  fetchAll :: stmt -> IO [[SqlValue]]
-  fetchAll stmt = do
-    e <- f mempty
-    return $ (appEndo e) []
+  fetchAll :: (FromRow row) => stmt -> IO (S.Seq row)
+  fetchAll stmt = fetchAll' S.empty
     where
-      f acc = do
-        res <- fetch stmt
-        case res of
-          Just r -> f (acc `mappend` (Endo (r:)))
-          Nothing -> return acc
+      fetchAll' !s = do
+        r <- fetch stmt
+        case r of
+          Nothing -> return s
+          Just row -> fetchAll' $ s S.|> row
 
   -- | Return list of column names of the result.
   getColumnNames :: stmt -> IO [TL.Text]
@@ -262,7 +251,7 @@ class (Typeable stmt) => Statement stmt where
   -- | Return the number of columns representing the result. Has default
   -- implementation through 'getColumnNames'
   getColumnsCount :: stmt -> IO Int
-  getColumnsCount stmt = fmap length $ getColumnNames stmt
+  getColumnsCount stmt = length <$> getColumnNames stmt
 
   -- | Return the original query the statement was prepared from.
   originalQuery :: stmt -> Query
@@ -274,7 +263,6 @@ data StmtWrapper = forall stmt. Statement stmt => StmtWrapper stmt
 
 instance Statement StmtWrapper where
   execute (StmtWrapper stmt) = execute stmt
-  executeRaw (StmtWrapper stmt) = executeRaw stmt
   executeMany (StmtWrapper stmt) = executeMany stmt
   statementStatus (StmtWrapper stmt) = statementStatus stmt
   finish (StmtWrapper stmt) = finish stmt
@@ -331,24 +319,29 @@ withStatement :: (Connection conn, Statement stmt, stmt ~ (ConnStatement conn))
 withStatement conn query = bracket
                            (prepare conn query)
                            finish
+{-# INLINEABLE withStatement #-}
 
 
--- | same as `run` but uses `ToRow` instance
-runRow :: (Connection con, ToRow a) => con -> Query -> a -> IO ()
-runRow con query row = run con query $ toRow row
+-- | Run query and return first row
+runFetch :: (Connection con, ToRow params, FromRow row)
+            => con -> Query -> params -> IO (Maybe row)
+runFetch con query params = withStatement con query $ \stmt -> do
+  execute stmt params
+  fetch stmt
 
--- | same as `runMany` but uses `ToRow`
-runManyRows :: (Connection con, ToRow a) => con -> Query -> [a] -> IO ()
-runManyRows con query rows = runMany con query $ map toRow rows
+runFetchAll :: (Connection con, ToRow params, FromRow row)
+                => con -> Query -> params -> IO (S.Seq row)
+runFetchAll con query params = withStatement con query $ \stmt -> do
+  execute stmt params
+  fetchAll stmt
 
-executeRow :: (Statement stmt, ToRow a) => stmt -> a -> IO ()
-executeRow stmt row = execute stmt $ toRow row
-
-executeManyRows :: (Statement stmt, ToRow a) => stmt -> [a] -> IO ()
-executeManyRows stmt rows = executeMany stmt $ map toRow rows
-
-fetchRow :: (Statement stmt, FromRow a) => stmt -> IO (Maybe a)
-fetchRow stmt = fetch stmt >>= return . (fromRow <$>)
-
-fetchAllRows :: (Statement stmt, FromRow a) => stmt -> IO [a]
-fetchAllRows stmt = fetchAll stmt >>= return . map fromRow
+runFetchOne :: (Connection con, ToRow params, FromSql col)
+               => con -> Query -> params -> IO (Maybe col)
+runFetchOne con query params = withStatement con query $ \stmt -> do
+  execute stmt params
+  r <- fetch stmt
+  case r of
+    Nothing -> return Nothing
+    (Just [row]) -> return row
+    (Just x) -> throwIO $ ConvertError $ "Query \"" ++ (TL.unpack $ unQuery query)
+                ++ "\" should return exactly ONE column, but returned " ++ (show $ length x)

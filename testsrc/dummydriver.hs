@@ -23,7 +23,7 @@ import Test.Framework.Providers.HUnit
 import Test.HUnit (Assertion)
 import Test.Hspec.Expectations
 import qualified Data.IntMap as M
-
+import qualified Data.Foldable as F
 
 data TStatus = TIdle | TInTransaction
              deriving (Eq, Show, Read, Typeable)
@@ -118,7 +118,7 @@ instance Connection DummyConnection where
 
 
 instance Statement DummyStatement where
-  execute stmt params = modifyMVar_ (dsStatus stmt) $ \st -> do
+  execute stmt prms = modifyMVar_ (dsStatus stmt) $ \st -> do
     case st of
       StatementNew -> do
         case originalQuery stmt of
@@ -127,6 +127,8 @@ instance Statement DummyStatement where
           "select" -> modifyMVar (dsSelecting stmt) $ const $ return (Just 0, StatementExecuted)
           _ -> return StatementExecuted
       _ -> throwIO $ SqlError "6" $ "Statement has wrong status to execute query " ++ show st
+    where
+      params = toRow prms
 
   statementStatus = readMVar . dsStatus
 
@@ -147,7 +149,7 @@ instance Statement DummyStatement where
     Just sl -> do
       dt <- readMVar $ dcData $ dsConnection stmt
       if (length dt) > sl
-        then return (Just $ sl+1, Just $ dt !! sl)
+        then return (Just $ sl+1, Just $ fromRow $ dt !! sl)
         else return (Nothing, Nothing)
 
 
@@ -162,7 +164,7 @@ inTransactionExceptions = do
       intr <- inTransaction c
       intr `shouldBe` True
       stmt <- prepare c "throw"  -- cause an exception throwing
-      executeRaw stmt
+      execute stmt ()
     ) `shouldThrow` (\(_ :: SqlError) -> True)
   intr <- inTransaction c
   intr `shouldBe` False         -- after rollback
@@ -175,7 +177,7 @@ inTransactionCommit = do
   intr1 `shouldBe` False
   withTransaction c $ do
     stmt <- prepare c "dummy query"
-    executeRaw stmt
+    execute stmt ()
     intr <- inTransaction c
     intr `shouldBe` True
   intr <- inTransaction c
@@ -196,7 +198,7 @@ weakRefsEmpty = do
         Just c -> do
           st1 <- prepare c "query 1"
           st2 <- prepare c "query 2"
-          executeRaw st2
+          execute st2 ()
           prts <- readTVarIO $ clList $ dcChilds c
           (length $ M.toList prts) `shouldBe` 2
 
@@ -245,9 +247,9 @@ testFetchAllRows = do
   execute s3 $ indt !! 2
   finish s3
   ss <- prepare c "select"
-  executeRaw ss
+  execute ss ()
   outdt <- fetchAll ss
-  outdt `shouldBe` indt
+  F.toList outdt `shouldBe` indt
 
 noStatementsAfterDisconnect :: Assertion
 noStatementsAfterDisconnect = do
@@ -266,11 +268,11 @@ noStatementsAfterDisconnect = do
     sub c = do
       withStatement c "query string" $ \st -> do -- this statement should be
                                                 -- finished
-        executeRaw st
-        _ <- fetch st
+        execute st ()
+        (_ :: Maybe ()) <- fetch st
         return ()
       s <- prepare c "query string" -- but this should not
-      executeRaw s
+      execute s ()
       s2 <- prepare c "query string"
       return ()
 

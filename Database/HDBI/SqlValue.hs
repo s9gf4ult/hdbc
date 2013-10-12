@@ -96,6 +96,7 @@ class FromSql a where
   fromSql s = case safeFromSql s of
     Left e -> throw e
     Right a -> a
+  {-# INLINEABLE fromSql #-}
 
 class ToRow a where
   toRow :: a -> [SqlValue]
@@ -107,6 +108,7 @@ class FromRow a where
   fromRow sqls = case safeFromRow sqls of
     Left e -> throw e
     Right a -> a
+  {-# INLINEABLE fromRow #-}
 
 wrongSqlList :: [SqlValue] -- ^ given list of SqlValues
                 -> Int -- ^ expected length of list
@@ -115,35 +117,56 @@ wrongSqlList x c = Left $ ConvertError
                    $ "Wrong count of SqlValues: " ++ (show $ length x)
                    ++ " but expected: " ++ (show c)
 
+-- | instance for conveniently pass empty list of parameters
+instance ToRow () where
+  toRow _ = []
+  {-# INLINEABLE toRow #-}
+
+-- | instance for convenient ignoring all the parameters
+instance FromRow () where
+  fromRow _ = ()
+  {-# INLINEABLE fromRow #-}
+  safeFromRow _ = Right ()
+  {-# INLINEABLE safeFromRow #-}
+
 instance (ToSql a) => ToRow [a] where
   toRow a = map toSql a
+  {-# INLINEABLE toRow #-}
 
 instance (FromSql a) => FromRow [a] where
   safeFromRow a = mapM safeFromSql a
+  {-# INLINEABLE safeFromRow #-}
 
 instance (ToSql a, ToSql b) => ToRow (a, b) where
   toRow (a, b) = [toSql a, toSql b]
+  {-# INLINEABLE toRow #-}
 
 instance (FromSql a, FromSql b) => FromRow (a, b) where
   safeFromRow [a, b] = (,) <$> safeFromSql a <*> safeFromSql b
   safeFromRow x = wrongSqlList x 2
+  {-# INLINEABLE safeFromRow #-}
 
 instance (ToSql a, ToSql b, ToSql c) => ToRow (a, b, c) where
   toRow (a, b, c) = [toSql a, toSql b, toSql c]
+  {-# INLINEABLE toRow #-}
 
 instance (FromSql a, FromSql b, FromSql c) => FromRow (a, b, c) where
   safeFromRow [a, b, c] = (,,) <$> safeFromSql a <*> safeFromSql b <*> safeFromSql c
   safeFromRow x = wrongSqlList x 3
+  {-# INLINEABLE safeFromRow #-}
 
 instance (ToSql a, ToSql b, ToSql c, ToSql d) => ToRow (a, b, c, d) where
   toRow (a, b, c, d) = [toSql a, toSql b, toSql c, toSql d]
+  {-# INLINEABLE toRow #-}
 
 instance (FromSql a, FromSql b, FromSql c, FromSql d) => FromRow (a, b, c, d) where
   safeFromRow [a, b, c, d] = (,,,) <$> safeFromSql a <*> safeFromSql b <*> safeFromSql c <*> safeFromSql d
   safeFromRow x = wrongSqlList x 4
+  {-# INLINEABLE safeFromRow #-}
 
 instance (ToSql a, ToSql b, ToSql c, ToSql d, ToSql e) => ToRow (a, b, c, d, e) where
   toRow (a, b, c, d, e) = [toSql a, toSql b, toSql c, toSql d, toSql e]
+  {-# INLINEABLE toRow #-}
 
 instance (FromSql a, FromSql b, FromSql c, FromSql d, FromSql e) => FromRow (a, b, c, d, e) where
   safeFromRow [a, b, c, d, e] = (,,,,)
@@ -153,10 +176,12 @@ instance (FromSql a, FromSql b, FromSql c, FromSql d, FromSql e) => FromRow (a, 
                                 <*> safeFromSql d
                                 <*> safeFromSql e
   safeFromRow x = wrongSqlList x 5
+  {-# INLINEABLE safeFromRow #-}
 
 
 instance (ToSql a, ToSql b, ToSql c, ToSql d, ToSql e, ToSql f) => ToRow (a, b, c, d, e, f) where
   toRow (a, b, c, d, e, f) = [toSql a, toSql b, toSql c, toSql d, toSql e, toSql f]
+  {-# INLINEABLE toRow #-}
 
 instance (FromSql a, FromSql b, FromSql c, FromSql d, FromSql e, FromSql f) => FromRow (a, b, c, d, e, f) where
   safeFromRow [a, b, c, d, e, f] = (,,,,,)
@@ -167,9 +192,11 @@ instance (FromSql a, FromSql b, FromSql c, FromSql d, FromSql e, FromSql f) => F
                                    <*> safeFromSql e
                                    <*> safeFromSql f
   safeFromRow x = wrongSqlList x 6
+  {-# INLINEABLE safeFromRow #-}
 
 instance (ToSql a, ToSql b, ToSql c, ToSql d, ToSql e, ToSql f, ToSql g) => ToRow (a, b, c, d, e, f, g) where
   toRow (a, b, c, d, e, f, g) = [toSql a, toSql b, toSql c, toSql d, toSql e, toSql f, toSql g]
+  {-# INLINEABLE toRow #-}
 
 instance (FromSql a, FromSql b, FromSql c, FromSql d, FromSql e, FromSql f, FromSql g) => FromRow (a, b, c, d, e, f, g) where
   safeFromRow [a, b, c, d, e, f, g] = (,,,,,,)
@@ -181,9 +208,9 @@ instance (FromSql a, FromSql b, FromSql c, FromSql d, FromSql e, FromSql f, From
                                       <*> safeFromSql f
                                       <*> safeFromSql g
   safeFromRow x = wrongSqlList x 7
-  
-  
-  
+  {-# INLINEABLE safeFromRow #-}
+
+
 -- | Show parser detail error
 showFail :: [String]  -- ^ List of contexts of parser
             -> String -- ^ Error message
@@ -383,6 +410,7 @@ instance Eq SqlValue where
 
 instance ToSql Decimal where
   toSql = SqlDecimal
+  {-# INLINEABLE toSql #-}
 
 instance FromSql Decimal where
   safeFromSql (SqlDecimal d)          = Right d
@@ -398,10 +426,12 @@ instance FromSql Decimal where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: Decimal)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Decimal)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Decimal)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql Int where
   toSql i = SqlInteger $ toInteger i
+  {-# INLINEABLE toSql #-}
 
 instance FromSql Int where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
@@ -417,10 +447,12 @@ instance FromSql Int where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: Int)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Int)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Int)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql Int32 where
   toSql i = SqlInteger $ toInteger i
+  {-# INLINEABLE toSql #-}
 
 instance FromSql Int32 where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
@@ -436,10 +468,12 @@ instance FromSql Int32 where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: Int32)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Int32)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Int32)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql Int64 where
   toSql i = SqlInteger $ toInteger i
+  {-# INLINEABLE toSql #-}
 
 instance FromSql Int64 where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
@@ -455,10 +489,12 @@ instance FromSql Int64 where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: Int64)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Int64)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Int64)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql Integer where
   toSql = SqlInteger
+  {-# INLINEABLE toSql #-}
 
 instance FromSql Integer where
   safeFromSql (SqlDecimal d)          = Right $ truncate d
@@ -474,10 +510,12 @@ instance FromSql Integer where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: Integer)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Integer)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Integer)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql Word32 where
   toSql i = SqlInteger $ toInteger i
+  {-# INLINEABLE toSql #-}
 
 instance FromSql Word32 where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
@@ -493,10 +531,12 @@ instance FromSql Word32 where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: Word32)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Word32)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Word32)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql Word64 where
   toSql i = SqlInteger $ toInteger i
+  {-# INLINEABLE toSql #-}
 
 instance FromSql Word64 where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
@@ -512,10 +552,12 @@ instance FromSql Word64 where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: Word64)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Word64)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Word64)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql Word where
   toSql i = SqlInteger $ toInteger i
+  {-# INLINEABLE toSql #-}
 
 instance FromSql Word where
   safeFromSql (SqlDecimal d)          = convertToBounded $ truncate d
@@ -531,10 +573,12 @@ instance FromSql Word where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: Word)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Word)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Word)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql Double where
   toSql = SqlDouble
+  {-# INLINEABLE toSql #-}
 
 instance FromSql Double where
   safeFromSql (SqlDecimal d)          = Right $ realToFrac d
@@ -550,10 +594,12 @@ instance FromSql Double where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: Double)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Double)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Double)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql [Char] where
   toSql s = SqlText $ TL.pack s
+  {-# INLINEABLE toSql #-}
 
 instance FromSql [Char] where
   safeFromSql (SqlDecimal d)          = Right $ show d
@@ -569,30 +615,36 @@ instance FromSql [Char] where
   safeFromSql (SqlLocalTimeOfDay tod) = Right $ formatIsoTimeOfDay tod
   safeFromSql (SqlLocalTime lt)       = Right $ formatIsoLocalTime lt
   safeFromSql SqlNull                 = nullConvertError (undefined :: String)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql TL.Text where
   toSql = SqlText
+  {-# INLINEABLE toSql #-}
 
 instance FromSql TL.Text where
   safeFromSql (SqlText t) = Right t
   safeFromSql (SqlBlob b) = incompatibleTypes b (undefined :: TL.Text)
   safeFromSql SqlNull     = nullConvertError (undefined :: TL.Text)
   safeFromSql x           = TL.pack <$> safeFromSql x
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql T.Text where
   toSql t = SqlText $ TL.fromChunks [t]
+  {-# INLINEABLE toSql #-}
 
 instance FromSql T.Text where
   safeFromSql (SqlText t) = Right $ TL.toStrict t
   safeFromSql (SqlBlob b) = incompatibleTypes b (undefined :: T.Text)
   safeFromSql SqlNull     = nullConvertError (undefined :: T.Text)
   safeFromSql x           = T.pack <$> safeFromSql x
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql B.ByteString where
   toSql = SqlBlob
+  {-# INLINEABLE toSql #-}
 
 instance FromSql B.ByteString where
   safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: B.ByteString)
@@ -608,10 +660,12 @@ instance FromSql B.ByteString where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: B.ByteString)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: B.ByteString)
   safeFromSql SqlNull                 = nullConvertError (undefined :: B.ByteString)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql BL.ByteString where
   toSql b = SqlBlob $ BB.toByteString $ BB.fromLazyByteString b
+  {-# INLINEABLE toSql #-}
 
 instance FromSql BL.ByteString where
   safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: BL.ByteString)
@@ -627,10 +681,12 @@ instance FromSql BL.ByteString where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: BL.ByteString)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: BL.ByteString)
   safeFromSql SqlNull                 = nullConvertError (undefined :: BL.ByteString)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql Bool where
   toSql = SqlBool
+  {-# INLINEABLE toSql #-}
 
 instance FromSql Bool where
   safeFromSql (SqlDecimal d)          = Right $ d /= 0
@@ -654,10 +710,12 @@ instance FromSql Bool where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: Bool)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: Bool)
   safeFromSql SqlNull                 = nullConvertError (undefined :: Bool)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql BitField where
   toSql = SqlBitField
+  {-# INLINEABLE toSql #-}
 
 instance FromSql BitField where
   safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: BitField)
@@ -673,10 +731,12 @@ instance FromSql BitField where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: BitField)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: BitField)
   safeFromSql SqlNull                 = nullConvertError (undefined :: BitField)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql UUID where
   toSql = SqlUUID
+  {-# INLINEABLE toSql #-}
 
 instance FromSql UUID where
   safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: UUID)
@@ -694,10 +754,12 @@ instance FromSql UUID where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: UUID)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: UUID)
   safeFromSql SqlNull                 = nullConvertError (undefined :: UUID)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql UTCTime where
   toSql = SqlUTCTime
+  {-# INLINEABLE toSql #-}
 
 instance FromSql UTCTime where
   safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: UTCTime)
@@ -713,10 +775,12 @@ instance FromSql UTCTime where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: UTCTime)
   safeFromSql (SqlLocalTime lt)       = incompatibleTypes lt (undefined :: UTCTime)
   safeFromSql SqlNull                 = nullConvertError (undefined :: UTCTime)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql Day where
   toSql = SqlLocalDate
+  {-# INLINEABLE toSql #-}
 
 instance FromSql Day where
   safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: Day)
@@ -732,10 +796,12 @@ instance FromSql Day where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: Day)
   safeFromSql (SqlLocalTime lt)       = Right $ localDay lt
   safeFromSql SqlNull                 = nullConvertError (undefined :: Day)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql TimeOfDay where
   toSql = SqlLocalTimeOfDay
+  {-# INLINEABLE toSql #-}
 
 instance FromSql TimeOfDay where
   safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: TimeOfDay)
@@ -751,10 +817,12 @@ instance FromSql TimeOfDay where
   safeFromSql (SqlLocalTimeOfDay tod) = Right $ tod
   safeFromSql (SqlLocalTime lt)       = Right $ localTimeOfDay lt
   safeFromSql SqlNull                 = nullConvertError (undefined :: TimeOfDay)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql LocalTime where
   toSql = SqlLocalTime
+  {-# INLINEABLE toSql #-}
 
 instance FromSql LocalTime where
   safeFromSql (SqlDecimal d)          = incompatibleTypes d (undefined :: LocalTime)
@@ -770,21 +838,41 @@ instance FromSql LocalTime where
   safeFromSql (SqlLocalTimeOfDay tod) = incompatibleTypes tod (undefined :: LocalTime)
   safeFromSql (SqlLocalTime lt)       = Right $ lt
   safeFromSql SqlNull                 = nullConvertError (undefined :: LocalTime)
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance (ToSql a) => ToSql (Maybe a) where
   toSql m = case m of
     Nothing -> SqlNull
     Just a  -> toSql a
+  {-# INLINEABLE toSql #-}
 
 instance (FromSql a) => FromSql (Maybe a) where
   safeFromSql SqlNull = Right Nothing
   safeFromSql x       = Just <$> safeFromSql x
+  {-# INLINEABLE safeFromSql #-}
+
+instance (ToSql a, ToSql b) => ToSql (Either a b) where
+  toSql (Left a) = toSql a
+  toSql (Right b) = toSql b
+  {-# INLINEABLE toSql #-}
+
+-- | Tries to convert to Left type first, if it fails try convert to Right type
+instance (FromSql a, FromSql b) => FromSql (Either a b) where
+  safeFromSql x = case safeFromSql x of
+    Right a -> Right $ Left a
+    Left _ -> case safeFromSql x of
+      Right b -> Right $ Right b
+      Left e -> Left e
+  {-# INLINEABLE safeFromSql #-}
 
 
 instance ToSql SqlValue where
   toSql = id
+  {-# INLINEABLE toSql #-}
 
 instance FromSql SqlValue where
   safeFromSql x = Right x
+  {-# INLINEABLE safeFromSql #-}
   fromSql = id
+  {-# INLINEABLE fromSql #-}
