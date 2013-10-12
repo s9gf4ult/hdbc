@@ -342,6 +342,8 @@ runFetchOne con query params = withStatement con query $ \stmt -> do
   r <- fetch stmt
   case r of
     Nothing -> return Nothing
-    (Just [row]) -> return row
+    (Just [col]) -> case safeFromSql col of
+      Left e -> throwIO e
+      Right row -> return $ Just row
     (Just x) -> throwIO $ ConvertError $ "Query \"" ++ (TL.unpack $ unQuery query)
                 ++ "\" should return exactly ONE column, but returned " ++ (show $ length x)
