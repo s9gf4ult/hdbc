@@ -52,13 +52,14 @@ import Control.Applicative ((<$>))
 import Control.DeepSeq (NFData(..))
 import Control.Exception (Exception(..), SomeException, try, catch, throwIO, bracket)
 import Control.Monad (forM_)
-import Data.Monoid (Monoid(..))
 import Data.Data (Data(..))
+import Data.Monoid (Monoid(..))
 import Data.String (IsString(..))
 import Data.Typeable
 import Database.HDBI.SqlValue (ToRow(..), FromRow(..), FromSql(..), ConvertError(..))
 import qualified Data.Sequence as S
 import qualified Data.Text.Lazy as TL
+
 
 -- | Error throwing by driver when database operation fails
 data SqlError =
@@ -145,6 +146,14 @@ class (Typeable conn, (Statement (ConnStatement conn))) => Connection conn where
                             $ \s -> executeMany s rows
   {-# INLINEABLE runMany #-}
 
+  -- | Run raw query. Many databases has an ablility to run a raw queries
+  -- separated by semicolon. Implementation of this method must use this
+  -- ability.
+  -- Has default implementation through 'run'
+  runRaw :: conn -> Query -> IO ()
+  runRaw con query = run con query ()
+  {-# INLINEABLE runRaw #-}
+
   -- | Clone the database connection. Return new connection with the same
   -- settings
   clone :: conn -> IO conn
@@ -178,6 +187,7 @@ instance Connection ConnWrapper where
   prepare (ConnWrapper conn) str = StmtWrapper <$> prepare conn str
   run (ConnWrapper conn) = run conn
   runMany (ConnWrapper conn) = runMany conn
+  runRaw (ConnWrapper conn) = runRaw conn
   clone (ConnWrapper conn) = ConnWrapper <$> clone conn
   hdbiDriverName (ConnWrapper conn) = hdbiDriverName conn
   dbTransactionSupport (ConnWrapper conn) = dbTransactionSupport conn

@@ -35,6 +35,13 @@ module Database.HDBI.SqlValue
     , BitField(..)
       -- * SQL value marshalling
     , SqlValue(..)
+      -- * Auxiliary convertion functions
+    , one , onei , oned
+    , onet , onetl , oneb , onebl
+    , safeUnOne
+    , unone , unonei , unoned
+    , unonet , unonetl
+    , unoneb , unonebl
     )
 
 where
@@ -428,14 +435,6 @@ instance FromSql Decimal where
   safeFromSql SqlNull                 = nullConvertError (undefined :: Decimal)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow Decimal where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow Decimal where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 instance ToSql Int where
   toSql i = SqlInteger $ toInteger i
@@ -457,14 +456,6 @@ instance FromSql Int where
   safeFromSql SqlNull                 = nullConvertError (undefined :: Int)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow Int where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow Int where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql Int32 where
@@ -487,14 +478,6 @@ instance FromSql Int32 where
   safeFromSql SqlNull                 = nullConvertError (undefined :: Int32)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow Int32 where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow Int32 where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql Int64 where
@@ -517,14 +500,6 @@ instance FromSql Int64 where
   safeFromSql SqlNull                 = nullConvertError (undefined :: Int64)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow Int64 where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow Int64 where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 instance ToSql Integer where
   toSql = SqlInteger
@@ -546,14 +521,6 @@ instance FromSql Integer where
   safeFromSql SqlNull                 = nullConvertError (undefined :: Integer)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow Integer where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow Integer where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql Word32 where
@@ -576,14 +543,6 @@ instance FromSql Word32 where
   safeFromSql SqlNull                 = nullConvertError (undefined :: Word32)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow Word32 where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow Word32 where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql Word64 where
@@ -606,14 +565,6 @@ instance FromSql Word64 where
   safeFromSql SqlNull                 = nullConvertError (undefined :: Word64)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow Word64 where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow Word64 where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql Word where
@@ -636,14 +587,6 @@ instance FromSql Word where
   safeFromSql SqlNull                 = nullConvertError (undefined :: Word)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow Word where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow Word where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql Double where
@@ -666,14 +609,6 @@ instance FromSql Double where
   safeFromSql SqlNull                 = nullConvertError (undefined :: Double)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow Double where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow Double where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql [Char] where
@@ -696,14 +631,6 @@ instance FromSql [Char] where
   safeFromSql SqlNull                 = nullConvertError (undefined :: String)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow [Char] where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow [Char] where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql TL.Text where
@@ -717,14 +644,6 @@ instance FromSql TL.Text where
   safeFromSql x           = TL.pack <$> safeFromSql x
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow TL.Text where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow TL.Text where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql T.Text where
@@ -738,14 +657,6 @@ instance FromSql T.Text where
   safeFromSql x           = T.pack <$> safeFromSql x
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow T.Text where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow T.Text where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql B.ByteString where
@@ -768,14 +679,6 @@ instance FromSql B.ByteString where
   safeFromSql SqlNull                 = nullConvertError (undefined :: B.ByteString)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow B.ByteString where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow B.ByteString where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql BL.ByteString where
@@ -798,14 +701,6 @@ instance FromSql BL.ByteString where
   safeFromSql SqlNull                 = nullConvertError (undefined :: BL.ByteString)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow BL.ByteString where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow BL.ByteString where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql Bool where
@@ -836,14 +731,6 @@ instance FromSql Bool where
   safeFromSql SqlNull                 = nullConvertError (undefined :: Bool)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow Bool where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow Bool where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql BitField where
@@ -866,14 +753,6 @@ instance FromSql BitField where
   safeFromSql SqlNull                 = nullConvertError (undefined :: BitField)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow BitField where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow BitField where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql UUID where
@@ -898,14 +777,6 @@ instance FromSql UUID where
   safeFromSql SqlNull                 = nullConvertError (undefined :: UUID)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow UUID where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow UUID where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql UTCTime where
@@ -928,14 +799,6 @@ instance FromSql UTCTime where
   safeFromSql SqlNull                 = nullConvertError (undefined :: UTCTime)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow UTCTime where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow UTCTime where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql Day where
@@ -958,14 +821,6 @@ instance FromSql Day where
   safeFromSql SqlNull                 = nullConvertError (undefined :: Day)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow Day where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow Day where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql TimeOfDay where
@@ -988,14 +843,6 @@ instance FromSql TimeOfDay where
   safeFromSql SqlNull                 = nullConvertError (undefined :: TimeOfDay)
   {-# INLINEABLE safeFromSql #-}
 
-instance ToRow TimeOfDay where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow TimeOfDay where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance ToSql LocalTime where
@@ -1017,15 +864,6 @@ instance FromSql LocalTime where
   safeFromSql (SqlLocalTime lt)       = Right $ lt
   safeFromSql SqlNull                 = nullConvertError (undefined :: LocalTime)
   {-# INLINEABLE safeFromSql #-}
-
-instance ToRow LocalTime where
-  toRow a = [toSql a]
-  {-# INLINEABLE toRow #-}
-
-instance FromRow LocalTime where
-  safeFromRow [a] = safeFromSql a
-  safeFromRow x = Left $ ConvertError $ "length of row must be 1, not" ++ (show $ length x)
-  {-# INLINEABLE safeFromRow #-}
 
 
 instance (ToSql a) => ToSql (Maybe a) where
@@ -1105,3 +943,74 @@ instance FromRow [SqlValue] where
   {-# INLINEABLE fromRow #-}
   safeFromRow a = Right a
   {-# INLINEABLE safeFromRow #-}
+
+
+-- | creates row of one element
+one :: (ToSql a) => a -> [SqlValue]
+one a = [toSql a]
+{-# INLINEABLE one #-}
+
+-- | create row of one Integer element
+onei :: Integer -> [SqlValue]
+onei = one
+{-# INLINEABLE onei #-}
+
+-- | create row of one Double element
+oned :: Double -> [SqlValue]
+oned = one
+{-# INLINEABLE oned #-}
+
+onet :: T.Text -> [SqlValue]
+onet = one
+{-# INLINEABLE onet #-}
+
+onetl :: TL.Text -> [SqlValue]
+onetl = one
+{-# INLINEABLE onetl #-}
+
+oneb :: B.ByteString -> [SqlValue]
+oneb = one
+{-# INLINEABLE oneb #-}
+
+onebl :: BL.ByteString -> [SqlValue]
+onebl = one
+{-# INLINEABLE onebl #-}
+
+-- | unwrap the row of one element safely
+safeUnOne :: (FromSql a) => [SqlValue] -> Either ConvertError a
+safeUnOne [a] = safeFromSql a
+safeUnOne x = Left $ ConvertError
+              $ "safeUnOne: row must contain exactly ONE element, not " ++ (show $ length x)
+{-# INLINEABLE safeUnOne #-}
+
+-- | same as `safeUnOne` but throws an exception if not converted
+unone :: (FromSql a) => [SqlValue] -> a
+unone x = case safeUnOne x of
+  Left e  -> throw e
+  Right a -> a
+{-# INLINEABLE unone #-}
+
+-- | unwrap row of one Integer
+unonei :: [SqlValue] -> Integer
+unonei = unone
+{-# INLINEABLE unonei #-}
+
+unoned :: [SqlValue] -> Double
+unoned = unone
+{-# INLINEABLE unoned #-}
+
+unonet :: [SqlValue] -> T.Text
+unonet = unone
+{-# INLINEABLE unonet #-}
+
+unonetl :: [SqlValue] -> TL.Text
+unonetl = unone
+{-# INLINEABLE unonetl #-}
+
+unoneb :: [SqlValue] -> B.ByteString
+unoneb = unone
+{-# INLINEABLE unoneb #-}
+
+unonebl :: [SqlValue] -> BL.ByteString
+unonebl = unone
+{-# INLINEABLE unonebl #-}
