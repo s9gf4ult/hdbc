@@ -99,16 +99,11 @@ module Database.HDBI
 
 -- |* Finish other hdbi drivers, like mysql and sqlite
 --
--- * Unify the testing and benchmarking with one package.
---
 -- * Create package hdbi-introspect with common interface to introspect and
 -- change the schema. Also it will be necessary to create packages
 -- hdbi-introspect-postgresql, hdbi-introspect-mysql and so on for each database
 -- using specific methods to introspect and change the schema. This is the base
 -- package for doing migrations like in Ruby on Rails.
---
--- * Create hdbi-resourcet and hdbi-conduit to provide convenient and reliable
--- way for finalizing statements and streaming processing the query results.
 --
 -- * Port other high-level database interfaces, like ''persistent'' and
 -- ''haskelldb''. This will posibly lead to need to patch ''persistent'' and/or
